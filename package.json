@@ -1,0 +1,14 @@
+{
+    "name" : "plugged",
+    "description" : "plugged",
+    "version" : "0.9.1",
+    "main" : "app.js",
+    "author" : "Sooyou",
+    "homepage" : "シ.moe",
+
+    "dependencies": {
+        "request": "*",
+        "async": "*",
+        "ws": "*"
+    }
+}
