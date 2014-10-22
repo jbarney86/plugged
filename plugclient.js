@@ -1,9 +1,3 @@
-/***************************/
-/*        PlugClient       */
-/*                         */
-/*        by Sooyou        */
-/***************************/
-
 var EventEmitter = require("events").EventEmitter;
 var models = require("./state.js");
 var Query = require("./query");
@@ -20,16 +14,20 @@ var endpoints = {
     BANS: baseURL +         "/_/bans",
     STAFF: baseURL +        "/_/staff",
     ROOMS: baseURL +        "/_/rooms",
-    MUTES: baseURL +        "/_/rooms/mutes",
+    MUTES: baseURL +        "/_/mutes",
     TOKEN: baseURL +        "/_/auth/token",
+    FRIENDS: baseURL +      "/_/friends",
     HISTORY: baseURL +      "/_/rooms/history",
     IGNORES: baseURL +      "/_/ignores",
+    INVITES: baseURL +      "/_/friends/invites",
     PRODUCTS: baseURL +     "/_/store/products",
     INVENTORY: baseURL +    "/_/store/inventory",
     ROOMSTATS: baseURL +    "/_/rooms/state",
     USERSTATS: baseURL +    "/_/users/",
     PLAYLISTS: baseURL +    "/_/playlists",
     USERHISTORY: baseURL +  "/_/users/me/history",
+    FAVORITEROOM: baseURL + "/_/rooms/favorites",
+    VALIDATEROOM: baseURL + "/_/rooms/validate/",
     /*--------------- PUT ---------------*/
     LOCK: baseURL +         "/_/booth/lock",
     BLURB: baseURL +        "/_/profile/blurb",
@@ -38,37 +36,26 @@ var endpoints = {
     AVATAR: baseURL +       "/_/users/avatar",
     STATUS: baseURL +       "/_/users/status",
     LANGUAGE: baseURL +     "/_/users/language",
+    IGNOREFRIEND: baseURL + "/_/friends/ignore",
     /*--------------- POST --------------*/
     VOTES: baseURL +        "/_/votes",
+    RESET: baseURL +        "/_/auth/reset/me",
     PURCHASE: baseURL +     "/_/store/purchase",
+    FACEBOOK: baseURL +     "/_/auth/facebook",
     JOINROOM: baseURL +     "/_/rooms/join",
     ADDBOOTH: baseURL +     "/_/booth/add",
+    BULKUSERS: baseURL +    "/_/users/bulk",
     JOINBOOTH: baseURL +    "/_/booth",
     SKIPBOOTH: baseURL +    "/_/booth/skip",
     MOVEBOOTH: baseURL +    "/_/booth/move",
     CREATEROOM: baseURL +   "/_/rooms",
     UPDATEROOM: baseURL +   "/_/rooms/update",
-    FAVORITEROOM: baseURL + "/_/rooms/favorites",
-
-    //BANS is also valid for POST
-    //MUTES is also valid for POST
-    //STAFF is also valid for POST
-    //IGNORES is also valid for POST
-    //PLAYLISTS is also valid for POST
-
+    UPDATESTAFF: baseURL +  "/_/staff/update",
     /*-------------- DELETE -------------*/
-    CHAT: baseURL +         "/_/chat",
-    FRIENDS: baseURL +      "/_/friends",
+    CHAT: baseURL +         "/_/chat/",
     SESSION: baseURL +      "/_/auth/session",
-    REMOVEBOOTH: baseURL +  "/_/booth/remove",
-    NOTIFICATION: baseURL + "/_/notifications"
-
-    //BANS is also valid for DELETE
-    //STAFF is also valid for DELETE
-    //MUTES is also valid for DELETE
-    //IGNORES is also valid for DELETE
-    //FAVORITES is also valid for DELETE
-
+    REMOVEBOOTH: baseURL +  "/_/booth/remove/",
+    NOTIFICATION: baseURL + "/_/notifications/"
 };
 
 WebSocket.prototype.sendMessage = function(type, data, offset) {
@@ -231,6 +218,7 @@ PlugClient.prototype.getAuthAndServerTime = function(data, callback) {
 PlugClient.prototype.connectSocket = function(callback) {
     callback = callback || function() {};
     var self = this;
+    var reconnect = false;
     var sid = Math.floor(Math.random() * 1000);
     var id = "xxxxxxxx".replace(/x/g, function() {
         return "abcdefghijklmnopqrstuvwxyz0123456789_".charAt(Math.floor(Math.random() * 37));
@@ -239,8 +227,10 @@ PlugClient.prototype.connectSocket = function(callback) {
     this.log("Server: " + sid, 3, "yellow");
     this.log("ID: " + id, 3, "yellow");
 
-    if(this.sock)
+    if(this.sock) {
         this.sock = null;
+        reconnect = true;
+    }
 
     this.sock = new WebSocket("wss://shalamar.plug.dj/socket/" + sid + '/' + id + "/websocket");
 
@@ -271,12 +261,13 @@ PlugClient.prototype.connectSocket = function(callback) {
         switch(msg.charAt(0)) {
             case "o":
                 self.keepAliveTimer.call(self);
-                this.sendMessage("auth", self.auth, self.offset);
+                //the auth message has to be send on the first connect only
+                if(!reconnect)
+                    this.sendMessage("auth", self.auth, self.offset);
                 break;
 
             case "h":
-                clearTimeout(self.keepAliveID);
-                self.keepAliveTimer();
+                self.keepAliveTimer.call(self);
                 break;
 
             case "a":
@@ -404,6 +395,9 @@ PlugClient.prototype.keepAliveTimer = function() {
             if(err) {
                 self.log("couldn't reconnect to websocket. Error: " + err, 1, "red");
                 process.exit(1);
+            } else {
+                if(self.state.room.slug)
+                    self.joinRoom(self.state.room.slug);
             }
         });
     }, 80*1000, this);
@@ -459,7 +453,7 @@ PlugClient.prototype.connect = function(room, callback) {
             this.getRoomStats(function(err, stats) {
 
                 if(!err) {
-                    console.log(stats);
+                    //console.log(stats);
                     this.state.room = models.parseRoom(stats);
                     callback(null, this.state);
                 } else {
@@ -554,6 +548,11 @@ PlugClient.prototype.joinRoom = function(name, callback) {
     this.query.query("POST", endpoints["JOINROOM"], { slug: name }, callback);
 };
 
+PlugClient.prototype.joinWaitlist = function(callback) {
+    callback.bind(this);
+    this.query.query("POST", endpoints["JOINBOOTH"], callback);
+};
+
 PlugClient.prototype.addToWaitlist = function(userID, callback) {
     callback.bind(this);
     this.query.query("POST", endpoints["ADDBOOTH"], { id: userID }, callback);
@@ -645,12 +644,12 @@ PlugClient.prototype.unbanUser = function(userID, callback) {
 
 PlugClient.prototype.deleteMessage = function(chatID, callback) {
     callback.bind(this);
-    this.query.query("DELETE", endpoints["CHAT"] + '/' + chatID, callback);
+    this.query.query("DELETE", endpoints["CHAT"] + chatID, callback);
 };
 
 PlugClient.prototype.deleteNotification = function(id, callback) {
     callback.bind(this);
-    this.query.query("DELETE", endpoints["NOTIFICATION"] + '/' + id, callback);
+    this.query.query("DELETE", endpoints["NOTIFICATION"] + id, callback);
 };
 
 PlugClient.prototype.logout = function(callback) {
@@ -726,7 +725,7 @@ PlugClient.prototype.setLanguage = function(language, callback) {
 PlugClient.prototype.woot = function(callback) {
     callback.bind(this);
     this.query.query("POST", endpoints["VOTES"], { 
-        vote: 1, 
+        direction: 1, 
         historyID: this.state.booth.historyID 
     }, callback);
 };
@@ -734,7 +733,7 @@ PlugClient.prototype.woot = function(callback) {
 PlugClient.prototype.meh = function(callback) {
     callback.bind(this);
     this.query.query("POST", endpoints["VOTES"], { 
-        vote: -1, 
+        direction: -1, 
         historyID: this.state.booth.historyID
     }, callback);
 };
