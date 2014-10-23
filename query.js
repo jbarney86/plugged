@@ -7,7 +7,9 @@ function processEntry(query, entry, flush) {
     request(entry.options, function requestCB(err, res, body) {
         query.active--;
 
-        if(body.hasOwnProperty("data"))
+        if(typeof entry.callback !== "undefined") {
+
+        if(body && body.hasOwnProperty("data"))
             body = body.data;
 
         if(!err && res.statusCode == 200) {
@@ -15,6 +17,7 @@ function processEntry(query, entry, flush) {
             entry.callback(null, body);
         } else {
 
+            //don't bother trying it again in case this entry got flushed through
             if(!flush && ((res ? res.statusCode : 0) >= 500 && entry.tries < 2)) {
                 entry.tries++;
                 setTimeout(pushAndProcess, 5*1000, query, entry)
@@ -24,6 +27,10 @@ function processEntry(query, entry, flush) {
             }
 
         }
+
+    } else {
+        entry = null;
+    }
 
     });
 }
@@ -64,8 +71,6 @@ Query.prototype.query = function(verb, url, data, callback, flush) {
         throw new Error("verb was not defined or invalid");
     if(!url || typeof url !== "string")
         throw new Error("url was not defined or not of type string");
-    if(typeof callback !== "function")
-        throw new Error("callback has to be defined and of type function");
 
     var entry = {
         tries: 0,
