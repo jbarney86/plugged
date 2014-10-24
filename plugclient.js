@@ -485,16 +485,6 @@ PlugClient.prototype.getRoomStats = function(callback) {
     this.query.query("GET", endpoints["ROOMSTATS"], callback);
 };
 
-PlugClient.prototype.searchMediaPlaylist = function(name, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["PLAYLISTS"] + "/media?q=" + name, callback);
-};
-
-PlugClient.prototype.getPlaylist = function(id, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", [endpoints["PLAYLISTS"], '/', id, "/media"].join(''), callback);
-};
-
 PlugClient.prototype.findRooms = function(name, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", [endpoints["ROOMS"], "?q=", name, "&page=0&limit=100"].join(''), callback);
@@ -510,29 +500,14 @@ PlugClient.prototype.getStaff = function(callback) {
     this.query.query("GET", endpoints["STAFF"], callback);
 };
 
-PlugClient.prototype.getSelf = function(callback) {
+PlugClient.prototype.getUser = function(userID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["USERSTATS"] + "/me", callback);
-};
-
-PlugClient.prototype.getUser = function(username, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["USERSTATS"] + '/' + username, callback);
-};
-
-PlugClient.prototype.getMyHistory = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["USERHISTORY"], callback);
+    this.query.query("GET", endpoints["USERSTATS"] + '/' + userID, callback);
 };
 
 PlugClient.prototype.getRoomHistory = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["HISTORY"], callback);
-};
-
-PlugClient.prototype.getFavoriteRooms = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["FAVORITEROOM"], callback);
 };
 
 PlugClient.prototype.validateRoomName = function(name, callback) {
@@ -543,16 +518,6 @@ PlugClient.prototype.validateRoomName = function(name, callback) {
 PlugClient.prototype.getMutes = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["MUTES"], callback);
-};
-
-PlugClient.prototype.getFriends = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["FRIENDS"], callback);
-};
-
-PlugClient.prototype.getFriendInvites = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["INVITES"], callback);
 };
 
 // here's some work needed to set the data properly
@@ -569,11 +534,6 @@ PlugClient.prototype.setCycle = function(shouldCycle, callback) {
     this.query.query("PUT", endpoints["CYCLE"], { shouldCycle: shouldCycle }, callback);
 };
 
-PlugClient.prototype.ignoreFriendRequest = function(userID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("PUT", endpoints["IGNOREFRIEND"], { id: userID }, callback);
-};
-
 PlugClient.prototype.setLogin = function(csrf, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("POST", endpoints["LOGIN"], {
@@ -583,9 +543,9 @@ PlugClient.prototype.setLogin = function(csrf, callback) {
     }, callback);
 };
 
-PlugClient.prototype.joinRoom = function(name, callback) {
+PlugClient.prototype.joinRoom = function(slug, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["JOINROOM"], { slug: name }, callback);
+    this.query.query("POST", endpoints["JOINROOM"], { slug: slug }, callback);
 };
 
 PlugClient.prototype.joinWaitlist = function(callback) {
@@ -598,24 +558,23 @@ PlugClient.prototype.addToWaitlist = function(userID, callback) {
     this.query.query("POST", endpoints["ADDBOOTH"], { id: userID }, callback);
 };
 
-PlugClient.prototype.addFriend = function(userID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["FRIENDS"], { id: userID }, callback);
-};
-
 PlugClient.prototype.skipDJ = function(userID, historyID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["SKIPBOOTH"], { 
-        userID: userID, 
-        historyID: historyID 
-    }, callback);
+
+    if(userID === this.state.self.id)
+        this.query.query("POST", endpoints["SKIPBOOTH"] + "/me", callback);
+    else
+        this.query.query("POST", endpoints["SKIPBOOTH"], { 
+            userID: userID, 
+            historyID: historyID 
+        }, callback);
 };
 
 PlugClient.prototype.moveDJ = function(userID, position, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["MOVEBOOTH"], { 
-        userID: userID, 
-        position: position 
+    this.query.query("POST", endpoints["MOVEBOOTH"], {
+        userID: userID,
+        position: position
     }, callback);
 };
 
@@ -634,11 +593,6 @@ PlugClient.prototype.updateRoomInfo = function(name, description, welcome, callb
         description: description, 
         welcome: welcome 
     }, callback);
-};
-
-PlugClient.prototype.favoriteRoom = function(roomID) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["FAVORITEROOM"], { id: roomID }, callback);
 };
 
 PlugClient.prototype.banUser = function(userID, time, callback) {
@@ -692,16 +646,6 @@ PlugClient.prototype.deleteMessage = function(chatID, callback) {
     this.query.query("DELETE", endpoints["CHAT"] + chatID, callback);
 };
 
-PlugClient.prototype.deleteNotification = function(id, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("DELETE", endpoints["NOTIFICATION"] + id, callback);
-};
-
-PlugClient.prototype.removeFriend = function(userID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("DELETE", endpoints["FRIENDS"] + '/' + userID, callback);
-};
-
 PlugClient.prototype.logout = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
 
@@ -720,6 +664,36 @@ PlugClient.prototype.logout = function(callback) {
 
 /*================ USER CALLS ================*/
 
+PlugClient.prototype.getSelf = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["USERSTATS"] + "/me", callback);
+};
+
+PlugClient.prototype.getMyHistory = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["USERHISTORY"], callback);
+};
+
+PlugClient.prototype.getFriends = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["FRIENDS"], callback);
+};
+
+PlugClient.prototype.getFriendInvites = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["INVITES"], callback);
+};
+
+PlugClient.prototype.searchMediaPlaylist = function(name, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["PLAYLISTS"] + "/media?q=" + name, callback);
+};
+
+PlugClient.prototype.getPlaylist = function(id, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", [endpoints["PLAYLISTS"], '/', id, "/media"].join(''), callback);
+};
+
 PlugClient.prototype.getHistory = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["USERHISTORY"], callback);
@@ -728,6 +702,11 @@ PlugClient.prototype.getHistory = function(callback) {
 PlugClient.prototype.getIgnores = function(callback) {
     callback.bind(this);
     this.query.query("GET", endpoints["IGNORES"], callback);
+};
+
+PlugClient.prototype.getFavoriteRooms = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["FAVORITEROOM"], callback);
 };
 
 PlugClient.prototype.getCSRF = function(callback) {
@@ -772,6 +751,56 @@ PlugClient.prototype.setLanguage = function(language, callback) {
     this.query.query("PUT", endpoints["LANGUAGE"], { language: language }, callback);
 };
 
+PlugClient.prototype.rejectFriendRequest = function(userID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("PUT", endpoints["IGNOREFRIEND"], { id: userID }, callback);
+};
+
+PlugClient.prototype.activatePlaylist = function(playlistID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("PUT", endpoints["PLAYLISTS"] + '/' + playlistID + "/activate", callback);
+};
+
+PlugClient.prototype.moveMedia = function(playlistID, mediaArray, beforeID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("PUT", 
+        endpoints["PLAYLISTS"] + '/' + playlistID + "/media/move", 
+        { ids: mediaArray, beforeID: beforeID }, callback);
+};
+
+PlugClient.prototype.updateMedia = function(playlistID, mediaID, author, title, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("PUT",
+        endpoints["PLAYLISTS"] + '/' + playlistID + "/media/update",
+        { id: mediaID, author: author, title: title }, callback);
+};
+
+PlugClient.prototype.shufflePlaylist = function(playlistID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("PUT", endpoints["PLAYLISTS"] + '/' + playlistID + "/shuffle", callback);
+};
+
+PlugClient.prototype.addFriend = function(userID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("POST", endpoints["FRIENDS"], { id: userID }, callback);
+};
+
+PlugClient.prototype.deleteMedia = function(playlistID, mediaIDs, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("POST",
+        endpoints["PLAYLISTS"] + '/' + playlistID + "/media/delete",
+        { ids: mediaIDs },
+        callback);
+};
+
+PlugClient.prototype.insertMedia = function(playlistID, mediaIDs, append, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("POST",
+        endpoints["PLAYLISTS"] + '/' + playlistID + "/media/insert",
+        { ids: mediaIDs, append: append },
+        callback);
+};
+
 PlugClient.prototype.woot = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("POST", endpoints["VOTES"], { 
@@ -783,9 +812,24 @@ PlugClient.prototype.woot = function(callback) {
 PlugClient.prototype.meh = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("POST", endpoints["VOTES"], { 
-        direction: -1, 
+        direction: -1,
         historyID: this.state.booth.historyID
     }, callback);
+};
+
+PlugClient.prototype.favoriteRoom = function(roomID) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("POST", endpoints["FAVORITEROOM"], { id: roomID }, callback);
+};
+
+PlugClient.prototype.deleteNotification = function(id, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("DELETE", endpoints["NOTIFICATION"] + id, callback);
+};
+
+PlugClient.prototype.removeFriend = function(userID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("DELETE", endpoints["FRIENDS"] + '/' + userID, callback);
 };
 
 /*================ STORE CALLS ================*/
