@@ -84,6 +84,7 @@ Query.prototype.query = function(verb, url, data, callback, flush) {
             json: true,
             headers: {
                 "User-Agent": "PlugClient/1.0 (NODE)",
+                "Accept": "application/json, text/javascript; q=0.1, */*; q=0.5",
                 "Content-Type": "application/json"
             }
         }
