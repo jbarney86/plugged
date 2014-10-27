@@ -70,6 +70,15 @@ var parseMutes = function(data) {
     return arr;
 };
 
+var pushMute = function(mute) {
+    mute = mute || {};
+
+    return {
+        id: mute.i || -1,
+        time: mute.d || 's'
+    };
+};
+
 var parseMute = function(data) {
     data = data || {};
 
@@ -100,6 +109,17 @@ var parseRemoveDJ = function(data) {
         username: data.t || "",
         isCurrentlyPlaying: data.d || false
     };
+};
+
+var parseModMove = function(data) {
+    data = data || {};
+
+    return {
+        moderator: data.m || "",
+        username: data.u || "",
+        oldIndex: data.o || 0,
+        newIndex: data.n || 0
+    };
 }
 
 var parsePlayback = function(data) {
@@ -125,6 +145,13 @@ var parseVotes = function(data) {
     }
 
     return arr;
+};
+
+var pushVote = function(vote) {
+    return {
+        id: vote.i,
+        direction: vote.v
+    };
 };
 
 var parseRoom = function(data) {
@@ -235,17 +262,6 @@ var parseChatDelete = function(data) {
     };
 };
 
-var parseModMove = function(data) {
-    data = data || {};
-
-    return {
-        moderator: data.m || "",
-        username: data.u || "",
-        oldPosition: data.o || 0,
-        newPosition: data.n || 0
-    };
-};
-
 var createState = function(data) {
     data = data || {};
 
@@ -258,6 +274,8 @@ var createState = function(data) {
 };
 
 exports.parseBan = parseBan;
+exports.pushVote = pushVote;
+exports.pushMute = pushMute;
 exports.parseChat = parseChat;
 exports.parseSelf = parseSelf;
 exports.parseUser = parseUser;
