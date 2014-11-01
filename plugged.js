@@ -385,6 +385,14 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.GRAB:
+
+        for(var i = 0, l = self.state.room.votes.length; i < l; i++) {
+            if(self.state.room.votes[i].id === data.p) {
+                self.state.room.votes.splice(i, 1);
+                break;
+            }
+        }
+        
         self.state.room.grabs.push(data.p);
         self.emit(self.GRAB_UPDATE, data.p);
         break;
@@ -491,8 +499,8 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         default:
-        console.log("DEF");
-        console.log(data.a);
+        self.log("undefined action", 1, "white");
+        self.log(data.a, 1, "white");
         break;
     }
 };
@@ -744,6 +752,13 @@ Plugged.prototype.getGrabs = function(withUserObject) {
 
 Plugged.prototype.cacheUser = function(user) {
     this.state.usercache.push({ user: user, timestamp: Date.now() });
+};
+
+Plugged.prototype.removeCachedUser = function(userID) {
+    for(var i = 0, l = this.state.usercache.length; i < l; i++) {
+        if(this.state.usercache[i].user.id === userID)
+            this.state.usercache.splice(i, 1);
+    }
 };
 
 Plugged.prototype.getStaffOnline = function() {
