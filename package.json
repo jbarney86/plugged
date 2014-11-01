@@ -1,8 +1,8 @@
 {
     "name" : "plugged",
     "description" : "plugged",
-    "version" : "0.9.1",
-    "main" : "app.js",
+    "version" : "1.0.0",
+    "main" : "plugged.js",
     "author" : "Sooyou",
     "homepage" : "シ.moe",
 
