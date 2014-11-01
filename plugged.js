@@ -111,7 +111,7 @@ function Plugged() {
     this.log = function() {};
     this.state = models.createState();
     this.query = new Query();
-    this.cleanCacheInterval = 0;
+    this.cleanCacheInterval = -1;
     this.credentials = null;
     this.keepAliveID = null;
     this.sock = null;
@@ -310,10 +310,10 @@ Plugged.prototype.cleanCache = function() {
 
 Plugged.prototype.watchCache = function(enabled) {
     if(enabled) {
-        this.cleanCacheInterval = setInterval(cleanCache, 5*60*1000);
+        this.cleanCacheInterval = setInterval(this.cleanCache.bind(this), 5*60*1000);
     } else {
         clearInterval(this.cleanCacheInterval);
-        this.cleanCacheInterval = 0;
+        this.cleanCacheInterval = -1;
     }
 };
 
