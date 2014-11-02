@@ -152,6 +152,7 @@ Plugged.prototype.USERSTATUS = {
 };
 
 Plugged.prototype.BAN = "ban";
+Plugged.prototype.ACK = "ack";
 Plugged.prototype.CHAT = "chat";
 Plugged.prototype.VOTE = "vote";
 Plugged.prototype.GRAB = "grab";
@@ -167,7 +168,9 @@ Plugged.prototype.SOCK_OPEN = "sockOpen";
 Plugged.prototype.USER_SKIP = "userSkip";
 Plugged.prototype.USER_JOIN = "userJoin";
 Plugged.prototype.FLOOD_API = "floodAPI";
+Plugged.prototype.CONNECTED = "connected";
 Plugged.prototype.MOD_ADD_DJ = "modAddDJ";
+Plugged.prototype.CONN_ERROR = "connError";
 Plugged.prototype.SOCK_ERROR = "sockError";
 Plugged.prototype.USER_LEAVE = "userLeave";
 Plugged.prototype.FLOOD_CHAT = "floodChat";
@@ -182,6 +185,7 @@ Plugged.prototype.KILL_SESSION = "killSession";
 Plugged.prototype.SCORE_UPDATE = "scoreUpdate";
 Plugged.prototype.SCORE_UPDATE = "scoreUpdate";
 Plugged.prototype.CHAT_COMMAND = "chatCommand";
+Plugged.prototype.DISCONNECTED = "disconnected";
 Plugged.prototype.CHAT_RATE_LIMIT = "rateLimit";
 Plugged.prototype.DJ_LIST_CYCLE = "djListCycle";
 Plugged.prototype.MOD_REMOVE_DJ = "modRemoveDJ";
@@ -336,6 +340,10 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
     console.log(data);
     
     switch(data.a) {
+        case self.ACK:
+        self.emit(self.ACK, data.p);
+        break;
+
         case self.ADVANCE:
         var previous = self.state.room.playback.media;
 
@@ -499,8 +507,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         default:
-        self.log("undefined action", 1, "white");
-        self.log(data.a, 1, "white");
+        self.log("undefined action: " + data.a, 1, "white");
         break;
     }
 };
@@ -511,14 +518,33 @@ Plugged.prototype.keepAliveTimer = function() {
     this.keepAliveID = setTimeout(function(self) {
         self.log("haven't received a keep alive message from host for more than 60 seconds, trying to reconnect...", 1, "red");
 
+        self.emit(self.DISCONNECTED, self.getRoomMeta());
+
+        //connect the socket again
         self.connectSocket(function(err) {
             if(err) {
                 self.log("couldn't reconnect to websocket. " + err, 1, "red");
-                process.exit(1);
+                self.emit(self.SOCK_ERROR, err);
+            } else if(self.state.room.meta.slug) {
+                
+                self.log("joining room: " + self.state.room.meta.slug, 1, "white");
+                self.joinRoom(self.state.room.meta.slug, function(err) {
+                    if(err) {
+                        self.log(["an error occured while trying to connect to room: '",
+                            self.state.room.meta.slug, "'. Error: ", err].join(''), 0, "red");
+
+                        self.emit(self.CONN_ERROR, err);
+                    } else {
+                        self.log("connected to '" + self.state.room.meta.slug + "' successfully",
+                            0,
+                            "green");
+                        self.emit(self.CONNECTED, err);
+                    }
+                });
+
+                self.keepAliveTimer.call(self);
             } else {
-                console.log(self.state.room.meta.slug);
-                if(self.state.room.meta.slug)
-                    self.joinRoom(self.state.room.meta.slug);
+                self.log("haven't joined room yet.", 0);
             }
         });
     }, 60*1000, this);
