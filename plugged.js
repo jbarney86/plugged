@@ -529,7 +529,20 @@ Plugged.prototype.sendChat = function(message) {
     if(message.indexOf("'") >= 0)
         message = message.split("'").join("&#39;");
 
-    this.sock.sendMessage("chat", message, this.offset);
+    if(message.length <= 256) {
+        this.sock.sendMessage("chat", message, this.offset);
+    } else {
+        var splits = Math.floor(message.length / 256);
+
+        var _multiMessageFunc = function(self, msg, s, cs) {
+            self.sock.sendMessage("chat", msg.slice(cs*256, (cs+1)*256));
+
+            if(cs < s)
+                setTimeout(_multiMessageFunc, 600, self, msg, s, ++cs);
+        };
+
+        _multiMessageFunc(this, message, splits, 0);
+    }
 };
 
 Plugged.prototype.invokeLogger = function(logfunc) {
