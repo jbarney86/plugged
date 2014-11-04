@@ -76,31 +76,24 @@ function setErrorMessage(statusCode, msg) {
     };
 }
 
-function loginClient(client, tries, callback) {
+function loginClient(client, tries) {
     async.waterfall([
         client.getCSRF.bind(client),
         client.setLogin.bind(client),
         client.getAuthAndServerTime.bind(client)
-    ], function(err) {
+    ], function _loggedIn(err) {
         if(!err) {
-
-            client.connectSocket(function(err) {
-                if(!err)
-                    callback.call(client, null);
-                else
-                    callback.call(client, err);
-            });
-
+            client.connectSocket();
         } else {
 
             if(tries < 2) {
                 client.log("an error occured while trying to log in", 0, "red");
                 client.log("err: " + err.code, 1, "red");
                 client.log("trying to reconnect...", 0);
-                loginClient(client, ++tries, callback);
+                loginClient(client, ++tries);
             } else {
                 client.log("couldn't log in.", 0, "red");
-                callback.call(client, err);
+                client.emit(client.CONN_ERROR, "couldn't log in");
             }
 
         }
@@ -112,13 +105,11 @@ function Plugged() {
     this.state = models.createState();
     this.query = new Query();
     this.cleanCacheInterval = -1;
+    this.keepAliveID = -1;
+    this.offset = 0;
     this.credentials = null;
-    this.keepAliveID = null;
     this.sock = null;
     this.auth = null;
-    this.offset = null;
-
-    this.watchCache(true);
 }
 
 util.inherits(Plugged, EventEmitter);
@@ -151,6 +142,17 @@ Plugged.prototype.USERSTATUS = {
     GAMING:     4
 };
 
+
+/*===== GENERAL EVENTS =====*/
+Plugged.prototype.CONN_PART = "connPart";
+Plugged.prototype.CONNECTED = "connected";
+Plugged.prototype.CONN_ERROR = "connError";
+
+Plugged.prototype.SOCK_OPEN = "sockOpen";
+Plugged.prototype.SOCK_ERROR = "sockError";
+Plugged.prototype.SOCK_CLOSED = "sockClosed";
+
+/*===== PLUG EVENTS =====*/
 Plugged.prototype.BAN = "ban";
 Plugged.prototype.ACK = "ack";
 Plugged.prototype.CHAT = "chat";
@@ -164,28 +166,21 @@ Plugged.prototype.ADVANCE = "advance";
 Plugged.prototype.MOD_SKIP = "modSkip";
 Plugged.prototype.MOD_MUTE = "modMute";
 Plugged.prototype.MOD_STAFF = "modStaff";
-Plugged.prototype.SOCK_OPEN = "sockOpen";
 Plugged.prototype.USER_SKIP = "userSkip";
 Plugged.prototype.USER_JOIN = "userJoin";
 Plugged.prototype.FLOOD_API = "floodAPI";
-Plugged.prototype.CONNECTED = "connected";
 Plugged.prototype.MOD_ADD_DJ = "modAddDJ";
-Plugged.prototype.CONN_ERROR = "connError";
-Plugged.prototype.SOCK_ERROR = "sockError";
 Plugged.prototype.USER_LEAVE = "userLeave";
 Plugged.prototype.FLOOD_CHAT = "floodChat";
 Plugged.prototype.MOD_MOVE_DJ = "modMoveDJ";
 Plugged.prototype.USER_UPDATE = "userUpdate";
-Plugged.prototype.SOCK_CLOSED = "sockClosed";
 Plugged.prototype.CHAT_DELETE = "chatDelete";
 Plugged.prototype.PLUG_UPDATE = "plugUpdate";
+Plugged.prototype.KILL_SESSION = "killSession";
 Plugged.prototype.NAME_CHANGED = "nameChanged";
 Plugged.prototype.PLUG_MESSAGE = "plugMessage";
-Plugged.prototype.KILL_SESSION = "killSession";
-Plugged.prototype.SCORE_UPDATE = "scoreUpdate";
 Plugged.prototype.SCORE_UPDATE = "scoreUpdate";
 Plugged.prototype.CHAT_COMMAND = "chatCommand";
-Plugged.prototype.DISCONNECTED = "disconnected";
 Plugged.prototype.CHAT_RATE_LIMIT = "rateLimit";
 Plugged.prototype.DJ_LIST_CYCLE = "djListCycle";
 Plugged.prototype.MOD_REMOVE_DJ = "modRemoveDJ";
@@ -202,9 +197,9 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
     callback = callback || function() {};
     callback.bind(this);
 
-    //the endpoint is the same but the site's content has changed due
-    //to the user being logged in.
-    this.query.query("GET", endpoints["CSRF"], function(err, body) {
+    // the endpoint is the same but the site's content has changed due
+    // to the user being logged in.
+    this.query.query("GET", endpoints["CSRF"], function _gotAuthToken(err, body) {
         if(!err) {
             var idx = body.indexOf("_jm=\"") + 5;
             var token;
@@ -216,7 +211,7 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
 
             time = Date.parse(time);
 
-            //a valid token is always 128 characters in length
+            // a valid token is always 128 characters in length
             if(token.length == 128 && !isNaN(time)) {
                 this.log("auth token: " + token, 2, "yellow");
                 this.log("time: " + time, 2, "yellow");
@@ -235,22 +230,18 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
 };
 
 /*================== WebSocket ==================*/
-Plugged.prototype.connectSocket = function(callback) {
-    callback = callback || function() {};
+Plugged.prototype.connectSocket = function() {
+    if(this.sock)
+        return "sock is already open!";
+
     var self = this;
-    var reconnect = false;
     var sid = Math.floor(Math.random() * 1000);
-    var id = "xxxxxxxx".replace(/x/g, function() {
+    var id = "xxxxxxxx".replace(/x/g, function _rep() {
         return "abcdefghijklmnopqrstuvwxyz0123456789_".charAt(Math.floor(Math.random() * 37));
     });
 
     this.log("Server: " + sid, 3, "yellow");
     this.log("ID: " + id, 3, "yellow");
-
-    if(this.sock) {
-        this.sock = null;
-        reconnect = true;
-    }
 
     this.sock = new WebSocket("wss://shalamar.plug.dj/socket/" + sid + '/' + id + "/websocket");
 
@@ -258,7 +249,6 @@ Plugged.prototype.connectSocket = function(callback) {
     this.sock.on("open", function _sockOpen() {
         self.log("socket opened", 3, "magenta");
         self.emit(self.SOCK_OPEN, self);
-        callback.call(self, null);
     });
 
     /*================= SOCK CLOSED =================*/
@@ -270,24 +260,20 @@ Plugged.prototype.connectSocket = function(callback) {
     /*================= SOCK ERROR ==================*/
     this.sock.on("error", function _sockError(err) {
         self.log("sock error!", 3, "magenta");
+        self.log(err, 3, "red");
         self.emit(self.SOCK_ERROR, self, err);
-        callback.call(self, err);
     });
 
     /*================= SOCK MESSAGE =================*/
-    this.sock.on("message", function(msg) {
-        //self.log(["sock message: ", msg].join(''), 2, "white");
-
+    this.sock.on("message", function _receivedMessage(msg) {
         switch(msg.charAt(0)) {
             case "o":
-                self.keepAliveTimer.call(self);
-                //the auth message has to be send on the first connect only
-                if(!reconnect)
-                    this.sendMessage("auth", self.auth, self.offset);
+                this.sendMessage("auth", self.auth, self.offset);
+                self.keepAliveCheck.call(self);
                 break;
 
             case "h":
-                self.keepAliveTimer.call(self);
+                self.keepAliveCheck.call(self);
                 break;
 
             case "a":
@@ -301,6 +287,14 @@ Plugged.prototype.connectSocket = function(callback) {
     });
 };
 
+Plugged.prototype.disconnect = function() {
+    this.watchCache(false);
+    this.query.flushQueue();
+    this.sock.removeAllListeners();
+    this.sock.close();
+    this.sock = null;
+};
+
 Plugged.prototype.clearCache = function() {
     this.state.usercache = [];
 };
@@ -312,13 +306,15 @@ Plugged.prototype.cleanCache = function() {
     }
 };
 
+// keeps the usercache clean by deleting invalidate objects
+// objects invalidate by staying in cache for more than 5 minutes
 Plugged.prototype.watchCache = function(enabled) {
-    if(enabled) {
+    clearInterval(this.cleanCacheInterval);
+
+    if(enabled)
         this.cleanCacheInterval = setInterval(this.cleanCache.bind(this), 5*60*1000);
-    } else {
-        clearInterval(this.cleanCacheInterval);
+    else
         this.cleanCacheInterval = -1;
-    }
 };
 
 Plugged.prototype.clearUserFromLists = function(id) {
@@ -333,15 +329,13 @@ Plugged.prototype.clearUserFromLists = function(id) {
     }
 };
 
-//WebSocket "a" (answer) processor
+// WebSocket action processor
 Plugged.prototype.wsaprocessor = function(self, msg) {
     var data = JSON.parse(msg.substr(3, msg.length - 5));
-    console.log("----------");
-    console.log(data);
     
     switch(data.a) {
         case self.ACK:
-        self.emit(self.ACK, data.p);
+        self.emit((data.p === 1 ? self.CONNECTED : self.CONN_ERROR), data.p);
         break;
 
         case self.ADVANCE:
@@ -394,6 +388,9 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
         case self.GRAB:
 
+        // deletes a duplicate vote
+        // this happens when the user already clicked woot and decided
+        // grab the song later
         for(var i = 0, l = self.state.room.votes.length; i < l; i++) {
             if(self.state.room.votes[i].id === data.p) {
                 self.state.room.votes.splice(i, 1);
@@ -507,47 +504,19 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         default:
-        self.log("undefined action: " + data.a, 1, "white");
+        self.log("unknown action: " + data.a, 1, "white");
         break;
     }
 };
 
-Plugged.prototype.keepAliveTimer = function() {
+Plugged.prototype.keepAliveCheck = function() {
     clearTimeout(this.keepAliveID);
 
     this.keepAliveID = setTimeout(function(self) {
-        self.log("haven't received a keep alive message from host for more than 60 seconds, trying to reconnect...", 1, "red");
+        self.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
 
-        self.emit(self.DISCONNECTED, self.getRoomMeta());
-
-        //connect the socket again
-        self.connectSocket(function(err) {
-            if(err) {
-                self.log("couldn't reconnect to websocket. " + err, 1, "red");
-                self.emit(self.SOCK_ERROR, err);
-            } else if(self.state.room.meta.slug) {
-                
-                self.log("joining room: " + self.state.room.meta.slug, 1, "white");
-                self.joinRoom(self.state.room.meta.slug, function(err) {
-                    if(err) {
-                        self.log(["an error occured while trying to connect to room: '",
-                            self.state.room.meta.slug, "'. Error: ", err].join(''), 0, "red");
-
-                        self.emit(self.CONN_ERROR, err);
-                    } else {
-                        self.log("connected to '" + self.state.room.meta.slug + "' successfully",
-                            0,
-                            "green");
-                        self.emit(self.CONNECTED, err);
-                    }
-                });
-
-                self.keepAliveTimer.call(self);
-            } else {
-                self.log("haven't joined room yet.", 0);
-            }
-        });
-    }, 60*1000, this);
+        self.emit(self.CONN_PART, self.getRoomMeta());
+    }, 180*1000, this);
 };
 
 Plugged.prototype.sendChat = function(message) {
@@ -560,20 +529,15 @@ Plugged.prototype.sendChat = function(message) {
     if(message.indexOf("'") >= 0)
         message = message.split("'").join("&#39;");
 
-    //this.log(["sending message: ", message].join(''), 3, "cyan");
-
     this.sock.sendMessage("chat", message, this.offset);
 };
 
-Plugged.prototype.invokeLogger = function(log) {
-    log = log || function(msg, verbosity) { if(verbosity <= 1) console.log(msg); };
-    this.log = log;
+Plugged.prototype.invokeLogger = function(logfunc) {
+    logfunc = logfunc || function(msg, verbosity) { if(verbosity <= 1) console.log(msg); };
+    this.log = logfunc;
 };
 
-Plugged.prototype.login = function(credentials, callback) {
-    if(typeof callback !== "function")
-        throw new Error("callback has to be defined");
-
+Plugged.prototype.login = function(credentials) {
     if(typeof credentials !== "object")
         throw new Error("credentials has to be of type object");
 
@@ -584,8 +548,8 @@ Plugged.prototype.login = function(credentials, callback) {
 
     this.log("logging in with account: " + credentials.email, 2, "yellow");
 
-    //0 indicating the amount of tries
-    loginClient(this, 0, callback);
+    // 0 indicating the amount of tries
+    loginClient(this, 0);
 };
 
 Plugged.prototype.connect = function(room, callback) {
@@ -595,13 +559,13 @@ Plugged.prototype.connect = function(room, callback) {
     if(typeof callback !== "function")
         throw new Error("callback has to be declared");
 
-    this.joinRoom(room, function(err) {
+    this.joinRoom(room, function _joinedRoom(err) {
         if(!err) {
+            this.watchCache(true);
             this.getRoomStats(function(err, stats) {
 
                 if(!err) {
                     this.state.room = models.parseRoom(stats[0]);
-                    console.log(this.state.room)
                     callback(null, this.state);
                 } else {
                     callback(err);
@@ -1007,8 +971,9 @@ Plugged.prototype.deleteMessage = function(chatID, callback) {
 Plugged.prototype.logout = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
 
-    this.query.query("DELETE", endpoints["SESSION"], function(err, body) {
+    this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
+            this.disconnect();
             this.log("Logged out.", 1, "green");
             this.auth = null;
             this.offset = 0;
@@ -1024,7 +989,7 @@ Plugged.prototype.logout = function(callback) {
 
 Plugged.prototype.requestSelf = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["USERSTATS"] + "/me", function(err, data) {
+    this.query.query("GET", endpoints["USERSTATS"] + "/me", function _requestedSelf(err, data) {
         if(!err && data)
             self.state.self = models.parseSelf(data[0]);
 
@@ -1075,7 +1040,7 @@ Plugged.prototype.getFavoriteRooms = function(callback) {
 Plugged.prototype.getCSRF = function(callback) {
     callback.bind(this);
 
-    this.query.query("GET", endpoints["CSRF"], function(err, body) {
+    this.query.query("GET", endpoints["CSRF"], function _gotCSRF(err, body) {
         if(!err) {
             var idx = body.indexOf("_csrf") + 9;
 
