@@ -42,6 +42,16 @@ var parseUser = function(data) {
     };
 };
 
+var parseUserUpdate = function(data) {
+    data = data || {};
+
+    return {
+        id: data.i || -1,
+        status: data.status || undefined,
+        avatarID: data.avatarID || undefined
+    };
+};
+
 var parseMedia = function(data) {
     data = data || {};
 
@@ -84,7 +94,7 @@ var parseMute = function(data) {
 
     return {
         username: data.t || "",      //name of the user
-        id: data.i || -1,                  //user ID
+        id: data.i || -1,            //user ID
         moderator: data.m || "",
         duration: data.d || 's',
         reason: data.r || 1
@@ -120,7 +130,7 @@ var parseModMove = function(data) {
         oldIndex: data.o || 0,
         newIndex: data.n || 0
     };
-}
+};
 
 var parsePlayback = function(data) {
     data = data || {};
@@ -197,7 +207,7 @@ var parseBooth = function(data) {
     };
 };
 
-var parseBan = function(data) {
+var parseModBan = function(data) {
     data = data || {};
 
     return {
@@ -205,8 +215,38 @@ var parseBan = function(data) {
         username: data.t || "",
         id: data.u || -1,
         duration: data.d || 'h'
-    }
-}
+    };
+};
+
+var parseBan = function(data) {
+    data = data || {};
+
+    return {
+        reason: data.r || undefined,
+        duration: data.l || undefined
+    };
+};
+
+var parseCycle = function(data) {
+    data = data || {};
+
+    return {
+        shouldCycle: data.f || false,
+        moderator: data.m || "",
+        id: data.u || -1
+    };
+};
+
+var parseLock = function(data) {
+    data = data || {};
+
+    return {
+        clearWaitlist: data.c || false,
+        isLocked: data.f || false,
+        moderator: data.m || "",
+        id: data.u || -1
+    };
+};
 
 /*var parsePromotion = function(data) {
     data = data || {};
@@ -241,6 +281,15 @@ var parsePromotion = function(data) {
     return {};
 };
 
+var parseXP = function(data) {
+    data = data || {};
+
+    return {
+        xp: data.xp || 0,
+        ep: data.ep || 0
+    };
+};
+
 var parseChat = function(data) {
     data = data || {};
 
@@ -273,6 +322,34 @@ var createState = function(data) {
     };
 };
 
+var parseRoomNameUpdate = function(data) {
+    data = data || {};
+
+    return {
+        name: data.n || "",
+        id: data.u || -1
+    };
+};
+
+var parseRoomDescriptionUpdate = function(data) {
+    data = data || {};
+
+    return {
+        description: data.d || "",
+        id: data.u || -1
+    };
+};
+
+var parseRoomWelcomeUpdate = function(data) {
+    data = data || {};
+
+    return {
+        name: data.w || "",
+        id: data.u || -1
+    };
+};
+
+exports.parseXP = parseXP;
 exports.parseBan = parseBan;
 exports.pushVote = pushVote;
 exports.pushMute = pushMute;
@@ -281,15 +358,22 @@ exports.parseSelf = parseSelf;
 exports.parseUser = parseUser;
 exports.parseRoom = parseRoom;
 exports.parseMeta = parseMeta;
+exports.parseLock = parseLock;
 exports.parseMute = parseMute;
 exports.parseMutes = parseMutes;
+exports.parseCycle = parseCycle;
 exports.parseGrabs = parseGrabs;
 exports.parseMedia = parseMedia;
 exports.parseVotes = parseVotes;
 exports.parseBooth = parseBooth;
+exports.parseModBan = parseModBan;
 exports.createState = createState;
 exports.parseModMove = parseModMove;
 exports.parseRemoveDJ = parseRemoveDJ;
 exports.parsePlayback = parsePlayback;
 exports.parsePromotion = parsePromotion;
+exports.parseUserUpdate = parseUserUpdate;
 exports.parseChatDelete = parseChatDelete;
+exports.parseRoomNameUpdate = parseRoomNameUpdate;
+exports.parseRoomWelcomeUpdate = parseRoomWelcomeUpdate;
+exports.parseRoomDescriptionUpdate = parseRoomDescriptionUpdate;

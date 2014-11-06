@@ -166,7 +166,6 @@ Plugged.prototype.ADVANCE = "advance";
 Plugged.prototype.MOD_SKIP = "modSkip";
 Plugged.prototype.MOD_MUTE = "modMute";
 Plugged.prototype.MOD_STAFF = "modStaff";
-Plugged.prototype.USER_SKIP = "userSkip";
 Plugged.prototype.USER_JOIN = "userJoin";
 Plugged.prototype.FLOOD_API = "floodAPI";
 Plugged.prototype.MOD_ADD_DJ = "modAddDJ";
@@ -179,15 +178,13 @@ Plugged.prototype.PLUG_UPDATE = "plugUpdate";
 Plugged.prototype.KILL_SESSION = "killSession";
 Plugged.prototype.NAME_CHANGED = "nameChanged";
 Plugged.prototype.PLUG_MESSAGE = "plugMessage";
-Plugged.prototype.SCORE_UPDATE = "scoreUpdate";
 Plugged.prototype.CHAT_COMMAND = "chatCommand";
 Plugged.prototype.CHAT_RATE_LIMIT = "rateLimit";
 Plugged.prototype.DJ_LIST_CYCLE = "djListCycle";
 Plugged.prototype.MOD_REMOVE_DJ = "modRemoveDJ";
 Plugged.prototype.DJ_LIST_LOCKED = "djListLocked";
-Plugged.prototype.HISTORY_UPDATE = "historyUpdate";
 Plugged.prototype.PLAYLIST_CYCLE = "playlistCycle";
-Plugged.prototype.WAIT_LIST_UPDATE = "waitListUpdate";
+Plugged.prototype.WAITLIST_UPDATE = "waitListUpdate";
 Plugged.prototype.ROOM_NAME_UPDATE = "roomNameUpdate";
 Plugged.prototype.MAINTENANCE_MODE = "plugMaintenance";
 Plugged.prototype.ROOM_WELCOME_UPDATE = "roomWelcomeUpdate";
@@ -332,6 +329,8 @@ Plugged.prototype.clearUserFromLists = function(id) {
 // WebSocket action processor
 Plugged.prototype.wsaprocessor = function(self, msg) {
     var data = JSON.parse(msg.substr(3, msg.length - 5));
+
+    
     
     switch(data.a) {
         case self.ACK:
@@ -365,25 +364,29 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         self.emit(self.CHAT_DELETE, models.parseChatDelete(data.p));
         break;
 
+        case self.PLAYLIST_CYCLE:
+        self.emit(self.PLAYLIST_CYCLE, data.p);
+        break;
+
         case self.DJ_LIST_CYCLE:
         self.state.room.booth.shouldCycle = data.p.f;
-        self.emit(self.DJ_LIST_CYCLE, self.state.room.booth, data.p.u, data.p.m);
+        self.emit(self.DJ_LIST_CYCLE, models.parseCycle(data.p));
         break;
 
         case self.DJ_LIST_LOCKED:
         self.state.room.booth.isLocked = data.p.f;
-        self.emit(self.DJ_LIST_LOCKED, models.parseLock(data.p), data.p.c, data.p.u, data.p.m);
+        self.emit(self.DJ_LIST_LOCKED, models.parseLock(data.p));
         break;
 
         case "djListUpdate":
         self.state.room.booth.waitlist = data.p;
-        self.emit(self.WAIT_LIST_UPDATE, data.p);
+        self.emit(self.WAITLIST_UPDATE, data.p);
         break;
 
         case self.EARN:
         self.state.self.xp = data.p.xp;
         self.state.self.ep = data.p.ep;
-        self.emit(self.EARN, data.p);
+        self.emit(self.EARN, models.parseXP(data.p));
         break;
 
         case self.GRAB:
@@ -405,7 +408,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         case self.MOD_BAN:
         self.clearUserFromLists(data.p.i);
         self.state.room.meta.population--;
-        self.emit(self.MOD_BAN, models.parseBan(data.p));
+        self.emit(self.MOD_BAN, models.parseModBan(data.p));
         break;
 
         case self.MOD_MOVE_DJ:
@@ -431,19 +434,23 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         self.emit(self.MOD_SKIP, data.p);
         break;
 
+        case self.SKIP:
+        self.emit(self.SKIP, data.p);
+        break;
+
         case self.ROOM_NAME_UPDATE:
         self.state.room.meta.name = data.p.n;
-        self.emit(self.ROOM_NAME_UPDATE, data.p.n, data.p.u);
+        self.emit(self.ROOM_NAME_UPDATE, models.parseRoomNameUpdate(data.p));
         break;
 
         case self.ROOM_DESCRIPTION_UPDATE:
         self.state.room.meta.description = data.p.d;
-        self.emit(self.ROOM_DESCRIPTION_UPDATE, data.p.d, data.p.u);
+        self.emit(self.ROOM_DESCRIPTION_UPDATE, models.parseRoomDescriptionUpdate(data.p));
         break;
 
         case self.ROOM_WELCOME_UPDATE:
         self.state.room.meta.welcome = data.p.w;
-        self.emit(self.ROOM_WELCOME_UPDATE, data.p.w, data.p.u);
+        self.emit(self.ROOM_WELCOME_UPDATE, models.parseRoomWelcomeUpdate(data.p));
         break;
 
         case self.USER_LEAVE:
@@ -453,26 +460,32 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.USER_JOIN:
-        self.state.room.users.push(models.parseUser(data.p));
+        var user = models.parseUser(data.p)
+        self.state.room.users.push(user);
         self.state.room.meta.population++;
-        self.emit(self.USER_JOIN, data.p);
+        self.emit(self.USER_JOIN, user);
         break;
 
         case self.USER_UPDATE:
-        self.emit(self.USER_UPDATE, data.p);
+        self.emit(self.USER_UPDATE, models.parseUserUpdate(data.p));
         break;
 
         case self.VOTE:
-        self.state.room.votes.push(models.pushVote(data.p));
-        self.emit(self.VOTE, data.p.v, data.p.u);
+        var vote = models.pushVote(data.p);
+        self.state.room.votes.push(vote);
+        self.emit(self.VOTE, vote);
         break;
 
         case self.CHAT_RATE_LIMIT:
-        self.emit(self.CHAT_RATE_LIMIT, data.p);
+        self.emit(self.CHAT_RATE_LIMIT);
         break;
 
         case self.FLOOD_API:
-        self.emit(self.FLOOD_API, data.p);
+        self.emit(self.FLOOD_API);
+        break;
+
+        case self.FLOOD_CHAT:
+        self.emit(self.FLOOD_CHAT);
         break;
 
         case self.KILL_SESSION:
@@ -496,7 +509,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.BAN:
-        self.emit(self.BAN, data.p.l, data.p.r);
+        self.emit(self.BAN, models.parseBan(data.p));
         break;
 
         case self.NAME_CHANGED:
