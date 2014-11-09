@@ -110,6 +110,7 @@ function Plugged() {
     this.credentials = null;
     this.sock = null;
     this.auth = null;
+    this.sleave = false;
 }
 
 util.inherits(Plugged, EventEmitter);
@@ -184,6 +185,7 @@ Plugged.prototype.DJ_LIST_CYCLE = "djListCycle";
 Plugged.prototype.MOD_REMOVE_DJ = "modRemoveDJ";
 Plugged.prototype.DJ_LIST_LOCKED = "djListLocked";
 Plugged.prototype.PLAYLIST_CYCLE = "playlistCycle";
+Plugged.prototype.FRIEND_REQUEST = "friendRequest";
 Plugged.prototype.WAITLIST_UPDATE = "waitListUpdate";
 Plugged.prototype.ROOM_NAME_UPDATE = "roomNameUpdate";
 Plugged.prototype.MAINTENANCE_MODE = "plugMaintenance";
@@ -286,7 +288,6 @@ Plugged.prototype.connectSocket = function() {
 
 Plugged.prototype.disconnect = function() {
     this.watchCache(false);
-    this.query.flushQueue();
     this.sock.removeAllListeners();
     this.sock.close();
     this.sock = null;
@@ -314,6 +315,10 @@ Plugged.prototype.watchCache = function(enabled) {
         this.cleanCacheInterval = -1;
 };
 
+Plugged.prototype.cacheUserOnLeave = function(enabled) {
+    this.sleave = enabled;
+};
+
 Plugged.prototype.clearUserFromLists = function(id) {
     for(var i = 0, l = this.state.room.votes; i < l; i++) {
         if(this.state.room.votes[i].id === id)
@@ -330,7 +335,7 @@ Plugged.prototype.clearUserFromLists = function(id) {
 Plugged.prototype.wsaprocessor = function(self, msg) {
     var data = JSON.parse(msg.substr(3, msg.length - 5));
 
-    
+    console.log(data);
     
     switch(data.a) {
         case self.ACK:
@@ -395,7 +400,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         // this happens when the user already clicked woot and decided
         // grab the song later
         for(var i = 0, l = self.state.room.votes.length; i < l; i++) {
-            if(self.state.room.votes[i].id === data.p) {
+            if(self.state.room.votes[i].id == data.p) {
                 self.state.room.votes.splice(i, 1);
                 break;
             }
@@ -454,9 +459,21 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.USER_LEAVE:
-        self.clearUserFromLists(data.p);
-        self.state.room.meta.population--;
-        self.emit(self.USER_LEAVE, data.p);
+        var user = undefined;
+
+        for(var i = 0, l = self.state.room.users.length; i < l; i++) {
+            if(self.state.room.users[i].id == data.p) {
+                self.clearUserFromLists(data.p);
+                self.state.room.meta.population--;
+                user = self.state.room.users.splice(i, 1);
+
+                if(self.sleave)
+                    self.cacheUser(user);
+                break;
+            }
+        }
+
+        self.emit(self.USER_LEAVE, user);
         break;
 
         case self.USER_JOIN:
@@ -468,6 +485,11 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
         case self.USER_UPDATE:
         self.emit(self.USER_UPDATE, models.parseUserUpdate(data.p));
+        break;
+
+        case self.FRIEND_REQUEST:
+        var user = self.getUserByName(data.p);
+        self.emit(self.FRIEND_REQUEST, user ? user : data.p);
         break;
 
         case self.VOTE:
@@ -532,7 +554,9 @@ Plugged.prototype.keepAliveCheck = function() {
     }, 180*1000, this);
 };
 
-Plugged.prototype.sendChat = function(message) {
+Plugged.prototype.sendChat = function(message, deleteMessage) {
+    deleteMessage = deleteMessage || false;
+
     if(typeof message !== "string")
         message = message.toString();
 
@@ -544,6 +568,9 @@ Plugged.prototype.sendChat = function(message) {
 
     if(message.length <= 256) {
         this.sock.sendMessage("chat", message, this.offset);
+        if(deleteMessage) {
+
+        }
     } else {
         var splits = Math.floor(message.length / 256);
 
@@ -615,12 +642,12 @@ Plugged.prototype.getUserByID = function(id, checkCache) {
     checkCache = checkCache || false;
 
     for(var i = 0, l = this.state.room.users.length; i < l; i++) {
-        if(this.state.room.users[i].id === id)
+        if(this.state.room.users[i].id == id)
             return this.state.room.users[i];
     }
 
     for(var i = 0, l = this.state.usercache.length; checkCache && i < l; i++) {
-        if(this.state.usercache[i].id === id)
+        if(this.state.usercache[i].id == id)
             return this.state.usercache[i];
     }
 
@@ -643,9 +670,9 @@ Plugged.prototype.getUserByName = function(username, checkCache) {
     return undefined;
 };
 
-Plugged.prototype.getUserRole = function(userID) {
+Plugged.prototype.getUserRole = function(id) {
     for(var i = 0, l = this.state.room.users.length; i < l; i++) {
-        if(this.state.room.users[i].id === userID)
+        if(this.state.room.users[i].id == id)
             return this.state.room.users[i].role;
     }
 
@@ -733,12 +760,14 @@ Plugged.prototype.doesWaitlistCycle = function() {
 };
 
 Plugged.prototype.getVotes = function(withUserObject) {
+    withUserObject = withUserObject || false;
+
     if(withUserObject) {
         var voters = [];
 
         for(var i = 0, l = this.state.room.votes.length; i < l; i++) {
             for(var j = 0, m = this.state.room.users.length; j < m; j++) {
-                if(this.state.room.votes[i] === this.state.room.users[j].id)
+                if(this.state.room.votes[i].id == this.state.room.users[j].id)
                     voters.push({ user: this.state.room.users[j], direction: this.state.room.votes[i].direction });
             }
         }
@@ -755,7 +784,7 @@ Plugged.prototype.getGrabs = function(withUserObject) {
 
         for(var i = 0, l = this.state.room.grabs.length; i < l; i++) {
             for(var j = 0, m = this.state.room.users.length; j < m; j++) {
-                if(this.state.room.grabs[i] === this.state.room.users[j].id)
+                if(this.state.room.grabs[i] == this.state.room.users[j].id)
                     grabbers.push(this.state.room.users[j]);
             }
         }
@@ -767,12 +796,20 @@ Plugged.prototype.getGrabs = function(withUserObject) {
 };
 
 Plugged.prototype.cacheUser = function(user) {
-    this.state.usercache.push({ user: user, timestamp: Date.now() });
+    if(typeof user === "object")
+        this.state.usercache.push({ user: user, timestamp: Date.now() });
 };
 
-Plugged.prototype.removeCachedUser = function(userID) {
+Plugged.prototype.removeCachedUserByID = function(id) {
     for(var i = 0, l = this.state.usercache.length; i < l; i++) {
-        if(this.state.usercache[i].user.id === userID)
+        if(this.state.usercache[i].user.id == id)
+            this.state.usercache.splice(i, 1);
+    }
+};
+
+Plugged.prototype.removeCachedUserByName = function(username) {
+    for(var i = 0, l = this.state.usercache.length; i < l; i++) {
+        if(this.state.usercache[i].user.username === username)
             this.state.usercache.splice(i, 1);
     }
 };
@@ -792,7 +829,7 @@ Plugged.prototype.getStaffOnlineByRole = function(role) {
     var staff = [];
 
     for(var i = 0, l = this.state.room.users.length; i < l; i++) {
-        if(this.state.room.users[i].role === role)
+        if(this.state.room.users[i].role == role)
             staff.push(this.state.room.users[i]);
     }
 
@@ -807,7 +844,7 @@ Plugged.prototype.getStaffByRole = function(role, callback) {
             var filteredStaff = [];
 
             for(var i = 0, l = staff.length; i < l; i++) {
-                if(staff[i].role === role)
+                if(staff[i].role == role)
                     filteredStaff.push(models.parseUser(staff[i]));
             }
 
@@ -848,9 +885,9 @@ Plugged.prototype.getStaff = function(callback) {
     this.query.query("GET", endpoints["STAFF"], callback);
 };
 
-Plugged.prototype.getUser = function(userID, callback) {
+Plugged.prototype.getUser = function(id, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["USERSTATS"] + '/' + userID, callback);
+    this.query.query("GET", endpoints["USERSTATS"] + '/' + id, callback);
 };
 
 Plugged.prototype.getRoomHistory = function(callback) {
@@ -901,15 +938,15 @@ Plugged.prototype.joinWaitlist = function(callback) {
     this.query.query("POST", endpoints["JOINBOOTH"], callback);
 };
 
-Plugged.prototype.addToWaitlist = function(userID, callback) {
+Plugged.prototype.addToWaitlist = function(id, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["ADDBOOTH"], { id: userID }, callback);
+    this.query.query("POST", endpoints["ADDBOOTH"], { id: id }, callback);
 };
 
 Plugged.prototype.skipDJ = function(userID, historyID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
 
-    if(userID === this.state.self.id)
+    if(userID == this.state.self.id)
         this.query.query("POST", endpoints["SKIPBOOTH"] + "/me", callback);
     else
         this.query.query("POST", endpoints["SKIPBOOTH"], { 
@@ -1033,7 +1070,7 @@ Plugged.prototype.getFriends = function(callback) {
     this.query.query("GET", endpoints["FRIENDS"], callback);
 };
 
-Plugged.prototype.getFriendInvites = function(callback) {
+Plugged.prototype.getFriendRequests = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["INVITES"], callback);
 };
@@ -1046,6 +1083,11 @@ Plugged.prototype.searchMediaPlaylist = function(name, callback) {
 Plugged.prototype.getPlaylist = function(id, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", [endpoints["PLAYLISTS"], '/', id, "/media"].join(''), callback);
+};
+
+Plugged.prototype.getPlaylists = function(playlistID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
 };
 
 Plugged.prototype.getHistory = function(callback) {
@@ -1196,11 +1238,6 @@ Plugged.prototype.getInventory = function(callback) {
 Plugged.prototype.getProducts = function(category, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["PRODUCTS"] + "/avatars/" + category, callback);
-};
-
-Plugged.prototype.getPlaylists = function(playlistID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
 };
 
 Plugged.prototype.purchaseItem = function(itemID, callback) {
