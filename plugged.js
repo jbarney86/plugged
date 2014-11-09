@@ -164,6 +164,7 @@ Plugged.prototype.SKIP = "skip";
 Plugged.prototype.BAN_IP = "banIP";
 Plugged.prototype.MOD_BAN = "modBan";
 Plugged.prototype.ADVANCE = "advance";
+Plugged.prototype.LEVEL_UP = "levelUp";
 Plugged.prototype.MOD_SKIP = "modSkip";
 Plugged.prototype.MOD_MUTE = "modMute";
 Plugged.prototype.MOD_STAFF = "modStaff";
@@ -392,6 +393,10 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         self.state.self.xp = data.p.xp;
         self.state.self.ep = data.p.ep;
         self.emit(self.EARN, models.parseXP(data.p));
+        break;
+
+        case self.LEVEL_UP:
+        self.emit(self.LEVEL_UP, data.p);
         break;
 
         case self.GRAB:
