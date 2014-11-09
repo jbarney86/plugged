@@ -9,28 +9,41 @@ function processEntry(query, entry, flush) {
 
         if(typeof entry.callback !== "undefined") {
 
-        if(body && body.hasOwnProperty("data"))
-            body = body.data;
+            // remove unnecessary information.
+            if(body && body.hasOwnProperty("data"))
+                body = body.data;
 
-        if(!err && res.statusCode == 200) {
-            entry.options = {};
-            entry.callback(null, body);
-        } else {
-
-            //don't bother trying it again in case this entry got flushed through
-            if(!flush && ((res ? res.statusCode : 0) >= 500 && entry.tries < 2)) {
-                entry.tries++;
-                setTimeout(pushAndProcess, 5*1000, query, entry)
-            } else {
+             if(!err && res.statusCode == 200) {
                 entry.options = {};
-                entry.callback({ code: (res ? res.statusCode : 0), message: null });
+                entry.callback(null, body);
+
+            } else {
+
+                if(body.length > 0 && body[0] === "permissionError") {
+                    entry.options = {};
+                    entry.callback({
+                        code: (res ? res.statusCode : 0),
+                        message: "permissionError"
+                    });
+                }
+
+                // don't bother trying it again in case this entry got flushed through.
+                if(!flush && ((res ? res.statusCode : 0) >= 500 && entry.tries < 2)) {
+                    entry.tries++;
+                    setTimeout(pushAndProcess, 5*1000, query, entry)
+                } else {
+                    entry.options = {};
+                    entry.callback({
+                        code: (res ? res.statusCode : 0),
+                        message: err
+                    });
+                }
+
             }
 
+        } else {
+            entry = null;
         }
-
-    } else {
-        entry = null;
-    }
 
     });
 }
