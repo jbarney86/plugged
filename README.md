@@ -23,7 +23,10 @@ plug.on(plug.CONNECTED, function() {
     plug.connect("example-room-slug", function(err) {
         // woot song on advance
         if(!err)
-            plug.on(plug.ADVANCE, plug.woot);
+            plug.on(plug.ADVANCE, function() {
+                //WOOT!
+                plug.woot();
+            });
     });
 });
 ```
