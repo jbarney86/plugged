@@ -1,10 +1,37 @@
 {
     "name" : "plugged",
-    "description" : "plugged",
+    "description" : "plugged is a vast API for plug.dj",
     "version" : "1.0.0",
-    "main" : "plugged.js",
+    "main" : "plugged",
     "author" : "Sooyou",
-    "homepage" : "シ.moe",
+    "homepage" : "https://github.com/SooYou/plugged/wiki",
+    "license" : "MIT",
+    "bugs" : {
+        "url" : "https://github.com/SooYou/plugged/issues"
+    },
+
+    "repository" : {
+        "type" : "git",
+        "url" : "https://github.com/SooYou/plugged.git"
+    },
+
+    "files" : [
+        "logger.js",
+        "plugged.js",
+        "query.js",
+        "state.js",
+        "package.json",
+        "LICENSE"
+    ],
+
+    "keywords" : [
+        "plug",
+        "plug.dj",
+        "plug bot",
+        "bot",
+        "API",
+        "plug api"
+    ],
 
     "dependencies": {
         "request": "*",
