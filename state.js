@@ -5,8 +5,8 @@ var parseSelf = function(data) {
         username: data.username || undefined,
         avatarID: data.avatarID || "default01",
         language: data.language || "en",
-        blurb: data.blurb || "",
-        slug: data.slug || "",
+        blurb: data.blurb || undefined,
+        slug: data.slug || undefined,
         notifications: data.notification || [],
         ignores: data.ignores || [],
         status: data.status || 0,
@@ -159,8 +159,8 @@ var parseVotes = function(data) {
 
 var pushVote = function(vote) {
     return {
-        id: vote.i,
-        direction: vote.v
+        id: vote.i || -1,
+        direction: vote.v || 1
     };
 };
 
@@ -297,7 +297,7 @@ var parseChat = function(data) {
         message: data.message || "",
         username: data.un || "",
         type: data.type || "message", //type of message (always "message")
-        uid: data.uid || -1,          //user ID
+        id: data.uid || -1,          //user ID
         cid: data.cid || -1           //chat ID
     };
 };
@@ -306,7 +306,7 @@ var parseChatDelete = function(data) {
     data = data || {};
 
     return {
-        uid: data.u,        //ID of mod that issued the deletion
+        id: data.u,        //ID of mod that issued the deletion
         cid: data.c         //chat ID
     };
 };
