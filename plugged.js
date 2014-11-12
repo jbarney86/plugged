@@ -38,6 +38,7 @@ var endpoints = {
     LANGUAGE: baseURL +     "/_/users/language",
     IGNOREFRIEND: baseURL + "/_/friends/ignore",
     /*--------------- POST --------------*/
+    GRABS: baseURL +        "/_/grabs",
     VOTES: baseURL +        "/_/votes",
     RESET: baseURL +        "/_/auth/reset/me",
     PURCHASE: baseURL +     "/_/store/purchase",
@@ -84,6 +85,7 @@ function loginClient(client, tries) {
     ], function _loggedIn(err) {
         if(!err) {
             client.connectSocket();
+            client.requestSelf();
         } else {
 
             if(tries < 2) {
@@ -177,6 +179,7 @@ Plugged.prototype.MOD_MOVE_DJ = "modMoveDJ";
 Plugged.prototype.USER_UPDATE = "userUpdate";
 Plugged.prototype.CHAT_DELETE = "chatDelete";
 Plugged.prototype.PLUG_UPDATE = "plugUpdate";
+Plugged.prototype.CHAT_MENTION = "chatMention";
 Plugged.prototype.KILL_SESSION = "killSession";
 Plugged.prototype.NAME_CHANGED = "nameChanged";
 Plugged.prototype.PLUG_MESSAGE = "plugMessage";
@@ -194,8 +197,7 @@ Plugged.prototype.ROOM_WELCOME_UPDATE = "roomWelcomeUpdate";
 Plugged.prototype.ROOM_DESCRIPTION_UPDATE = "roomDescriptionUpdate";
 
 Plugged.prototype.getAuthAndServerTime = function(data, callback) {
-    callback = callback || function() {};
-    callback.bind(this);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
 
     // the endpoint is the same but the site's content has changed due
     // to the user being logged in.
@@ -335,8 +337,6 @@ Plugged.prototype.clearUserFromLists = function(id) {
 // WebSocket action processor
 Plugged.prototype.wsaprocessor = function(self, msg) {
     var data = JSON.parse(msg.substr(3, msg.length - 5));
-
-    console.log(data);
     
     switch(data.a) {
         case self.ACK:
@@ -348,6 +348,8 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
         self.state.room.booth.dj = data.p.c;
         self.state.room.booth.waitlist = data.p.d;
+        self.state.self.vote = 0;
+        self.state.self.grab = 0;
         self.state.room.grabs = [];
         self.state.room.votes = [];
 
@@ -360,10 +362,14 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.CHAT:
-        if(data.p.message.charAt(0) == '/')
-            self.emit(self.CHAT_COMMAND, models.parseChat(data.p));
-        else
-            self.emit(self.CHAT, models.parseChat(data.p));
+        var chat = models.parseChat(data.p);
+
+        if(chat.message.indexOf('@' + self.state.self.username) > -1)
+            self.emit(self.CHAT_MENTION, chat);
+        else if(chat.message.charAt(0) == '/')
+            self.emit(self.CHAT_COMMAND, chat);
+        
+        self.emit(self.CHAT, chat);
         break;
 
         case self.CHAT_DELETE:
@@ -396,6 +402,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.LEVEL_UP:
+        self.state.self.level++;
         self.emit(self.LEVEL_UP, data.p);
         break;
 
@@ -948,7 +955,17 @@ Plugged.prototype.addToWaitlist = function(id, callback) {
     this.query.query("POST", endpoints["ADDBOOTH"], { id: id }, callback);
 };
 
-Plugged.prototype.skipDJ = function(userID, historyID, callback) {
+Plugged.prototype.grab = function(playlistID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+
+    this.state.self.grab = 1;
+    this.query.query("POST", endpoints["GRABS"], {
+        playlistID: playlistID,
+        historyID: this.state.room.playback.historyID
+    }, callback);
+};
+
+Plugged.prototype.skipDJ = function(userID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
 
     if(userID == this.state.self.id)
@@ -956,7 +973,7 @@ Plugged.prototype.skipDJ = function(userID, historyID, callback) {
     else
         this.query.query("POST", endpoints["SKIPBOOTH"], { 
             userID: userID, 
-            historyID: historyID 
+            historyID: this.state.room.playback.historyID
         }, callback);
 };
 
@@ -1037,7 +1054,7 @@ Plugged.prototype.deleteMessage = function(chatID, callback) {
 };
 
 Plugged.prototype.logout = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
 
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
@@ -1056,13 +1073,13 @@ Plugged.prototype.logout = function(callback) {
 /*================ USER CALLS ================*/
 
 Plugged.prototype.requestSelf = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function () {});
     this.query.query("GET", endpoints["USERSTATS"] + "/me", function _requestedSelf(err, data) {
         if(!err && data)
-            self.state.self = models.parseSelf(data[0]);
+            this.state.self = models.parseSelf(data[0]);
 
         callback(err, data);
-    });
+    }.bind(this));
 };
 
 Plugged.prototype.getMyHistory = function(callback) {
@@ -1101,7 +1118,7 @@ Plugged.prototype.getHistory = function(callback) {
 };
 
 Plugged.prototype.getIgnores = function(callback) {
-    callback.bind(this);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["IGNORES"], callback);
 };
 
@@ -1111,7 +1128,7 @@ Plugged.prototype.getFavoriteRooms = function(callback) {
 };
 
 Plugged.prototype.getCSRF = function(callback) {
-    callback.bind(this);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
 
     this.query.query("GET", endpoints["CSRF"], function _gotCSRF(err, body) {
         if(!err) {
@@ -1204,6 +1221,7 @@ Plugged.prototype.insertMedia = function(playlistID, mediaIDs, append, callback)
 
 Plugged.prototype.woot = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.state.self.vote = 1;
     this.query.query("POST", endpoints["VOTES"], { 
         direction: 1, 
         historyID: this.state.room.playback.historyID 
@@ -1212,6 +1230,7 @@ Plugged.prototype.woot = function(callback) {
 
 Plugged.prototype.meh = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.state.self.vote = -1;
     this.query.query("POST", endpoints["VOTES"], { 
         direction: -1,
         historyID: this.state.room.playback.historyID
