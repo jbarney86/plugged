@@ -307,6 +307,10 @@ Plugged.prototype.cleanCache = function() {
     }
 };
 
+Plugged.prototype.flushQuery = function() {
+    this.query.flushQuery();
+};
+
 // keeps the usercache clean by deleting invalidate objects
 // objects invalidate by staying in cache for more than 5 minutes
 Plugged.prototype.watchCache = function(enabled) {
@@ -324,13 +328,17 @@ Plugged.prototype.cacheUserOnLeave = function(enabled) {
 
 Plugged.prototype.clearUserFromLists = function(id) {
     for(var i = 0, l = this.state.room.votes; i < l; i++) {
-        if(this.state.room.votes[i].id === id)
+        if(this.state.room.votes[i].id === id) {
             this.state.room.votes.splice(i, 1);
+            break;
+        }
     }
 
     for(var i = 0, l = this.state.room.grabs; i < l; i++) {
-        if(this.state.room.grabs[i] === id)
+        if(this.state.room.grabs[i] === id) {
             this.state.room.grabs.splice(i, 1);
+            break;
+        }
     }
 };
 
@@ -814,15 +822,19 @@ Plugged.prototype.cacheUser = function(user) {
 
 Plugged.prototype.removeCachedUserByID = function(id) {
     for(var i = 0, l = this.state.usercache.length; i < l; i++) {
-        if(this.state.usercache[i].user.id == id)
+        if(this.state.usercache[i].user.id == id) {
             this.state.usercache.splice(i, 1);
+            break;
+        }
     }
 };
 
 Plugged.prototype.removeCachedUserByName = function(username) {
     for(var i = 0, l = this.state.usercache.length; i < l; i++) {
-        if(this.state.usercache[i].user.username === username)
+        if(this.state.usercache[i].user.username === username) {
             this.state.usercache.splice(i, 1);
+            break;
+        }
     }
 };
 
@@ -1029,13 +1041,42 @@ Plugged.prototype.addStaff = function(userID, role, callback) {
 };
 
 Plugged.prototype.ignoreUser = function(userID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["IGNORES"], { id: userID }, callback);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("POST", endpoints["IGNORES"], { id: userID }, function(err, data) {
+        if(!err && data)
+            this.state.self.ignores.push({
+                id: data.id,
+                username: data.username
+            });
+
+        callback(err);
+    }.bind(this));
 };
 
 Plugged.prototype.deletePlaylist = function(playlistID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("DELETE", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
+};
+
+Plugged.prototype.removeIgnore = function(userID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("DELETE", endpoints["IGNORES"] + '/' + userID, function(err, data) {
+        if(!err && data) {
+            for(var i = 0, l = this.state.self.ignores.length; i < l; i++) {
+                if(this.state.self.ignores[i].id == userID) {
+                    this.state.self.ignores.splice(i, 1);
+                    break;
+                }
+            }
+        }
+
+        callback(err, data);
+    }.bind(this));
+};
+
+Plugged.prototype.removeStaff = function(userID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
+    this.query.query("DELETE", endpoints["STAFF"] + '/' + userID, callback);
 };
 
 Plugged.prototype.removeDJ = function(userID, callback) {
@@ -1097,19 +1138,33 @@ Plugged.prototype.getFriendRequests = function(callback) {
     this.query.query("GET", endpoints["INVITES"], callback);
 };
 
-Plugged.prototype.searchMediaPlaylist = function(name, callback) {
+Plugged.prototype.searchMediaPlaylist = function(playlistID, query, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["PLAYLISTS"] + "/media?q=" + name, callback);
+    this.query.query("GET", [endpoints["PLAYLISTS"], '/', playlistID, "/media"].join(''), function(err, data) {
+        if(!err && data) {
+            var result = [];
+            var regex = new RegExp('(' + query + ')');
+
+            for(var i = 0, l = data.length; i < l; i++) {
+                if(data[i].title.match(regex, 'i') || data[i].author.match(regex, 'i'))
+                    result.push(data[i]);
+            }
+
+            callback(err, result);
+        } else {
+            callback(err);
+        }
+    });
 };
 
-Plugged.prototype.getPlaylist = function(id, callback) {
+Plugged.prototype.getPlaylist = function(playlistID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", [endpoints["PLAYLISTS"], '/', id, "/media"].join(''), callback);
+    this.query.query("GET", [endpoints["PLAYLISTS"], '/', playlistID, "/media"].join(''), callback);
 };
 
-Plugged.prototype.getPlaylists = function(playlistID, callback) {
+Plugged.prototype.getPlaylists = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
+    this.query.query("GET", endpoints["PLAYLISTS"], callback);
 };
 
 Plugged.prototype.getHistory = function(callback) {
@@ -1150,18 +1205,33 @@ Plugged.prototype.getCSRF = function(callback) {
 };
 
 Plugged.prototype.setProfileMessage = function(message, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("PUT", endpoints["BLURB"], { blurb: message }, callback);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("PUT", endpoints["BLURB"], { blurb: message }, function(err) {
+        if(!err)
+            this.state.room.self.blurb = message;
+
+        callback(err);
+    }.bind(this));
 };
 
 Plugged.prototype.setAvatar = function(avatarID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("PUT", endpoints["AVATAR"], { id: avatarID }, callback);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("PUT", endpoints["AVATAR"], { id: avatarID }, function(err) {
+        if(!err)
+            this.state.room.self.avatarID = avatarID;
+
+        callback(err);
+    }.bind(this));
 };
 
 Plugged.prototype.setStatus = function(status, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("PUT", endpoints["STATUS"], { status: status }, callback);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("PUT", endpoints["STATUS"], { status: status }, function(err) {
+        if(!err)
+            this.state.room.self.status = status;
+
+        callback(err);
+    }.bind(this));
 };
 
 Plugged.prototype.setLanguage = function(language, callback) {
