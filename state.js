@@ -47,6 +47,7 @@ var parseUserUpdate = function(data) {
 
     return {
         id: data.i || -1,
+        level: data.level || undefined,
         status: data.status || undefined,
         avatarID: data.avatarID || undefined
     };
@@ -164,6 +165,25 @@ var pushVote = function(vote) {
     };
 };
 
+var parseExtendedRoom = function(data) {
+    data = data || {};
+
+    return {
+        cid: data.cid || "",
+        dj: (data.dj ? parseUser(data.dj) : null),
+        favorite: data.favorite || false,
+        format: data.format || 1,
+        host: data.host || "",
+        id: data.id || -1,
+        image: data.image || "",
+        media: data.media || "",
+        name: data.name || "",
+        population: data.population || 0,
+        private: data.private || false,
+        slug: data.slug || undefined
+    };
+};
+
 var parseRoom = function(data) {
     data = data || {};
 
@@ -191,7 +211,7 @@ var parseMeta = function(data) {
         id: data.id || -1,
         name: data.name || "",
         population: data.population || 0,
-        slug: data.slug || "",
+        slug: data.slug || undefined,
         welcome: data.welcome || ""
     };
 };
@@ -215,6 +235,16 @@ var parseModBan = function(data) {
         username: data.t || "",
         id: data.u || -1,
         duration: data.d || 'h'
+    };
+};
+
+var parseModRemove = function(data) {
+    data = data || {};
+
+    return {
+        moderator: data.m || "",
+        username: data.u || -1,
+        wasPlaying: data.d || false
     };
 };
 
@@ -286,7 +316,8 @@ var parseXP = function(data) {
 
     return {
         xp: data.xp || 0,
-        ep: data.ep || 0
+        ep: data.ep || 0,
+        level: data.level || -1
     };
 };
 
@@ -372,8 +403,10 @@ exports.parseModMove = parseModMove;
 exports.parseRemoveDJ = parseRemoveDJ;
 exports.parsePlayback = parsePlayback;
 exports.parsePromotion = parsePromotion;
+exports.parseModRemove = parseModRemove;
 exports.parseUserUpdate = parseUserUpdate;
 exports.parseChatDelete = parseChatDelete;
+exports.parseExtendedRoom = parseExtendedRoom;
 exports.parseRoomNameUpdate = parseRoomNameUpdate;
 exports.parseRoomWelcomeUpdate = parseRoomWelcomeUpdate;
 exports.parseRoomDescriptionUpdate = parseRoomDescriptionUpdate;
