@@ -1,7 +1,7 @@
 {
     "name" : "plugged",
     "description" : "plugged is a vast API for plug.dj",
-    "version" : "1.0.2",
+    "version" : "1.0.3",
     "main" : "plugged",
     "author" : "Sooyou",
     "homepage" : "https://github.com/SooYou/plugged/wiki",
@@ -26,11 +26,10 @@
 
     "keywords" : [
         "plug",
+        "dj",
         "plug.dj",
-        "plug bot",
         "bot",
-        "API",
-        "plug api"
+        "api"
     ],
 
     "dependencies": {
