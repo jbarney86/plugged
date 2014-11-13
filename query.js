@@ -1,9 +1,7 @@
 var request = require("request");
 var verbs = ["GET", "POST", "PUT", "DELETE"];
 
-function processEntry(query, entry, flush) {
-    flush = flush || false;
-
+function processEntry(query, entry) {
     request(entry.options, function requestCB(err, res, body) {
         query.active--;
 
@@ -14,28 +12,24 @@ function processEntry(query, entry, flush) {
                 body = body.data;
 
              if(!err && res.statusCode == 200) {
+
+                // extract unnecessary array
+                if(entry.extractArray && body.length === 1)
+                    body = body[0];
+
                 entry.options = {};
                 entry.callback(null, body);
 
             } else {
-
-                if(body.length > 0 && body[0] === "permissionError") {
-                    entry.options = {};
-                    entry.callback({
-                        code: (res ? res.statusCode : 0),
-                        message: "permissionError"
-                    });
-                }
-
-                // don't bother trying it again in case this entry got flushed through.
-                if(!flush && ((res ? res.statusCode : 0) >= 500 && entry.tries < 2)) {
+                // don't bother trying it again in case this entry got flushed through (tries === -1).
+                if((entry.tries >= 0 && entry.tries < 2) && (res ? res.statusCode : 0) >= 500) {
                     entry.tries++;
                     setTimeout(pushAndProcess, 5*1000, query, entry)
                 } else {
                     entry.options = {};
                     entry.callback({
                         code: (res ? res.statusCode : 0),
-                        message: err
+                        message: (body && body.length > 0 ? body[0] : err)
                     });
                 }
 
@@ -49,7 +43,7 @@ function processEntry(query, entry, flush) {
 }
 
 function pushAndProcess(query, entry) {
-    query.push(entry);
+    query.queue.push(entry);
     query.process();
 }
 
@@ -69,13 +63,16 @@ function Query(jar) {
     this.startWatcher();
 }
 
-Query.prototype.query = function(verb, url, data, callback, flush) {
+Query.prototype.query = function(verb, url, data, callback, extractArray, flush) {
+    extractArray = extractArray || false;
     flush = flush || false;
 
-    //reorganize arguments since data is optional
+    //reorganize arguments since parameter data is optional
     if(typeof data === "function") {
-        if(typeof callback === "boolean")
-            flush = callback;
+        if(typeof callback === "boolean") {
+            flush = extractArray;
+            extractArray = callback;
+        }
         callback = data;
         data = {};
     }
@@ -86,7 +83,8 @@ Query.prototype.query = function(verb, url, data, callback, flush) {
         throw new Error("url was not defined or not of type string");
 
     var entry = {
-        tries: 0,
+        tries: (flush ? -1 : 0),
+        extractArray: extractArray,
         callback: callback,
         options: {
             url: url,
@@ -108,7 +106,7 @@ Query.prototype.query = function(verb, url, data, callback, flush) {
         this.process();
     } else {
         this.active++;
-        processEntry(this, entry, true);
+        processEntry(this, entry);
     }
 };
 
