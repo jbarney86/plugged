@@ -604,7 +604,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         self.state.room.users.push(user);
         self.state.room.meta.population++;
 
-        if(self.state.self.friends.indexOf(user.id) >= 0)
+        if(self.isFriend(user.id))
             self.emit(self.FRIEND_JOIN, user);
         else
             self.emit(self.USER_JOIN, user);
@@ -818,6 +818,15 @@ Plugged.prototype.getUsers = function() {
 
 Plugged.prototype.getSelf = function() {
     return this.state.self;
+};
+
+Plugged.prototype.isFriend = function(userID) {
+    for(var i = 0, l = this.state.self.friends.length; i < l; i++) {
+        if(this.state.self.friends[i] == userID)
+            return true;
+    }
+
+    return false;
 };
 
 Plugged.prototype.getCurrentDJ = function() {
@@ -1492,7 +1501,7 @@ Plugged.prototype.removeFriend = function(userID, callback) {
     this.query.query("DELETE", endpoints["FRIENDS"] + '/' + userID, function(err, data) {
         if(!err) {
             for(var i = 0, l = this.state.self.friends.length; i < l; i++) {
-                if(this.state.self.friends[i].id === userID) {
+                if(this.state.self.friends[i].id == userID) {
                     this.state.self.friends.splice(i, 1);
                     break;
                 }
