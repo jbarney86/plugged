@@ -109,6 +109,7 @@ function loginClient(client, tries) {
         if(!err) {
             client.connectSocket();
             client.requestSelf();
+
         } else {
 
             if(tries < 2) {
@@ -142,6 +143,14 @@ function Plugged() {
 
 util.inherits(Plugged, EventEmitter);
 
+Plugged.prototype.BANREASON = {
+    VIOLATING_COMMUNITY_RULES:  1,
+    VERBAL_ABUSE:               2,
+    SPAMMING:                   3,
+    OFFENSIVE_LANGUAGE:         4,
+    NEGATIVE_ATTITUDE:          5
+};
+
 Plugged.prototype.BANDURATION = {
     HOUR:   'h',
     DAY:    'd',
@@ -169,7 +178,6 @@ Plugged.prototype.USERSTATUS = {
     WORKING:    3,
     GAMING:     4
 };
-
 
 /*===== GENERAL EVENTS =====*/
 Plugged.prototype.CONN_PART = "connPart";
@@ -203,6 +211,7 @@ Plugged.prototype.FLOOD_CHAT = "floodChat";
 Plugged.prototype.MOD_MOVE_DJ = "modMoveDJ";
 Plugged.prototype.USER_UPDATE = "userUpdate";
 Plugged.prototype.CHAT_DELETE = "chatDelete";
+Plugged.prototype.FRIEND_JOIN = "friendJoin";
 Plugged.prototype.PLUG_UPDATE = "plugUpdate";
 Plugged.prototype.CHAT_MENTION = "chatMention";
 Plugged.prototype.KILL_SESSION = "killSession";
@@ -594,7 +603,11 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         var user = models.parseUser(data.p)
         self.state.room.users.push(user);
         self.state.room.meta.population++;
-        self.emit(self.USER_JOIN, user);
+
+        if(self.state.self.friends.indexOf(user.id) >= 0)
+            self.emit(self.FRIEND_JOIN, user);
+        else
+            self.emit(self.USER_JOIN, user);
         break;
 
         case self.USER_UPDATE:
@@ -1245,10 +1258,20 @@ Plugged.prototype.logout = function(callback) {
 Plugged.prototype.requestSelf = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function () {});
     this.query.query("GET", endpoints["USERSTATS"] + "me", function _requestedSelf(err, data) {
-        if(!err && data)
+        if(!err && data) {
             this.state.self = models.parseSelf(data);
 
-        callback(err, data);
+            this.getFriends(function(err, data) {
+                if(!err && data) {
+                    for(var i = 0, l = data.length; i < l; i++)
+                        this.state.self.friends.push(data[i].id);
+                }
+
+                callback(err, data);
+            }.bind(this));
+        } else {
+            callback(err);
+        }
     }.bind(this), true);
 };
 
@@ -1411,8 +1434,13 @@ Plugged.prototype.shufflePlaylist = function(playlistID, callback) {
 };
 
 Plugged.prototype.addFriend = function(userID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["FRIENDS"], { id: userID }, callback);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("POST", endpoints["FRIENDS"], { id: userID }, function(err, data) {
+        if(!err)
+            this.state.self.friends.push(userID);
+
+        callback(err);
+    }.bind(this));
 };
 
 Plugged.prototype.deleteMedia = function(playlistID, mediaIDs, callback) {
@@ -1460,8 +1488,19 @@ Plugged.prototype.deleteNotification = function(id, callback) {
 };
 
 Plugged.prototype.removeFriend = function(userID, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("DELETE", endpoints["FRIENDS"] + '/' + userID, callback);
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("DELETE", endpoints["FRIENDS"] + '/' + userID, function(err, data) {
+        if(!err) {
+            for(var i = 0, l = this.state.self.friends.length; i < l; i++) {
+                if(this.state.self.friends[i].id === userID) {
+                    this.state.self.friends.splice(i, 1);
+                    break;
+                }
+            }
+        }
+
+        callback(err);
+    }.bind(this));
 };
 
 /*================ STORE CALLS ================*/
