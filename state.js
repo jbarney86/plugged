@@ -9,6 +9,7 @@ var parseSelf = function(data) {
         slug: data.slug || undefined,
         notifications: data.notification || [],
         ignores: data.ignores || [],
+        friends: data.friends || [],
         status: data.status || 0,
         joined: data.joined || 0,
         level: data.level || 0,
