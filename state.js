@@ -349,7 +349,8 @@ var createState = function(data) {
         credentials: data.credentials || {},
         self: parseSelf(data.self),
         room: parseRoom(data.room),
-        usercache: data.usercache || []
+        usercache: data.usercache || [],
+        chatcache: data.chatcache || []
     };
 };
 
