@@ -172,6 +172,12 @@ Plugged.prototype.USERROLE = {
     HOST:       5
 };
 
+Plugged.prototype.GLOBALROLE = {
+    NONE:               0,
+    BRAND_AMBASSADOR:   1,
+    ADMIN:              2
+};
+
 Plugged.prototype.USERSTATUS = {
     AVAILABLE:  1,
     AWAY:       2,
@@ -1227,6 +1233,11 @@ Plugged.prototype.removeStaff = function(userID, callback) {
 Plugged.prototype.removeDJ = function(userID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("DELETE", endpoints["REMOVEBOOTH"] + '/' + userID, callback);
+};
+
+Plugged.prototype.leaveWaitlist = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("DELETE", endpoints["JOINBOOTH"], callback);
 };
 
 Plugged.prototype.unbanUser = function(userID, callback) {
