@@ -127,6 +127,8 @@ function loginClient(client, tries) {
 }
 
 function Plugged() {
+    Plugged.super_.call(this);
+    
     this.log = function() {};
     this.state = models.createState();
     this.query = new Query();
@@ -394,7 +396,7 @@ Plugged.prototype.clearChatCache = function() {
 };
 
 Plugged.prototype.flushQuery = function() {
-    this.query.flushQuery();
+    this.query.flushQueue();
 };
 
 // keeps the usercache clean by deleting invalidate objects
