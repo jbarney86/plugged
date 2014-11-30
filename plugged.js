@@ -176,8 +176,8 @@ Plugged.prototype.USERROLE = {
 
 Plugged.prototype.GLOBALROLE = {
     NONE:               0,
-    BRAND_AMBASSADOR:   1,
-    ADMIN:              2
+    BRAND_AMBASSADOR:   3,
+    ADMIN:              5
 };
 
 Plugged.prototype.USERSTATUS = {
@@ -863,6 +863,18 @@ Plugged.prototype.getRoomMeta = function() {
 
 Plugged.prototype.getFX = function() {
     return this.state.room.fx;
+};
+
+Plugged.prototype.checkGlobalRole = function(gRole) {
+    return (gRole === 5 ?
+                        this.GLOBALROLE.ADMIN
+                        :
+                        (gRole > 0 && gRole < 5 ?
+                                     this.GLOBALROLE.BRAND_AMBASSADOR
+                                     :
+                                     this.GLOBALROLE.NONE
+                        )
+            );
 };
 
 Plugged.prototype.getHostName = function() {
