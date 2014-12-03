@@ -1275,7 +1275,7 @@ Plugged.prototype.logout = function(callback) {
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
             this.disconnect();
-            this.query.flushQuery();
+            this.flushQuery();
             this.log("Logged out.", 1, "green");
             this.auth = null;
             this.offset = 0;
