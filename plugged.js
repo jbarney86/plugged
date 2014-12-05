@@ -94,13 +94,11 @@ function delMsg(msg, count) {
 function muteExpired(mute) {
     for(var i = this.state.room.mutes.length - 1; 0 <= i; i--) {
         if(this.state.room.mutes[i].id == mute.id) {
+            clearTimeout(this.state.room.mutes[i].interval);
             this.state.room.mutes.splice(i, 1);
             break;
         }
     }
-
-    if(this.state.room.mutes.length === 0)
-        this.state.room.muteExpire = [];
 }
 
 function cacheChatMessage(msg) {
@@ -351,11 +349,21 @@ Plugged.prototype.disconnect = function() {
     this.logout();
 };
 
-Plugged.prototype.clearMuteExpireArray = function() {
-    for(var i = 0, l = this.state.room.muteExpire.length; i < l; i++)
-        clearTimeout(this.state.room.muteExpire[i]);
+Plugged.prototype.clearMutes = function() {
+    for(var i = 0, l = this.state.room.mutes.length; i < l; i++)
+        clearTimeout(this.state.room.mutes[i].interval);
 
-    this.state.room.muteExpire = [];
+    this.state.room.mutes = [];
+};
+
+Plugged.prototype.clearMute = function(id) {
+    for(var i = 0, l = this.state.room.mutes.length; i < l; i++) {
+        if(this.state.room.mutes[i].id == id) {
+            clearTimeout(this.state.room.mutes[i].interval);
+            this.state.room.mutes.splice(i, 1);
+            break;
+        }
+    }
 };
 
 Plugged.prototype.clearUserCache = function() {
@@ -593,8 +601,11 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             30*60*1000 : mute.time === self.MUTEDURATION.LONG ? 
             45*60*1000 : 15*60*1000);
 
-        self.state.room.muteExpire.push(setTimeout(muteExpired.bind(self), time, mute));
-        self.state.room.mutes.push(mute);
+        if(mute.time === self.MUTEDURATION.NONE)
+            self.clearMute(mute.id);
+        else
+            self.state.room.mutes.push({id: mute.id, time: mute.time, interval: setTimeout(muteExpired.bind(self), time, mute) });
+        
         self.emit(self.MOD_MUTE, models.parseMute(data.p));
         break;
 
@@ -811,7 +822,7 @@ Plugged.prototype.connect = function(room, callback) {
             this.watchUserCache(true);
             this.clearUserCache();
             this.clearChatCache();
-            this.clearMuteExpireArray();
+            this.clearMutes();
 
             this.getRoomStats(function(err, stats) {
 
@@ -1340,7 +1351,7 @@ Plugged.prototype.logout = function(callback) {
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
             this.watchUserCache(false);
-            this.clearMuteExpireArray();
+            this.clearMutes();
             this.clearUserCache();
             this.clearChatCache();
             this.flushQuery();
