@@ -91,6 +91,15 @@ function delMsg(msg, count) {
     }
 }
 
+function muteExpired(mute) {
+    for(var i = this.state.room.mutes.length - 1; 0 <= i; i--) {
+        if(this.state.room.mutes[i].id == mute.id) {
+            this.state.room.mutes.splice(i, 1);
+            break;
+        }
+    }
+}
+
 function cacheChatMessage(msg) {
     if(typeof msg !== "undefined") {
         this.state.chatcache.push(msg);
@@ -132,6 +141,7 @@ function Plugged() {
     this.log = function() {};
     this.state = models.createState();
     this.query = new Query();
+    this.muteExpireArray = [];
     this.cleanCacheInterval = -1;
     this.chatcachesize = 256;
     this.keepAliveID = -1;
@@ -217,6 +227,7 @@ Plugged.prototype.MOD_ADD_DJ = "modAddDJ";
 Plugged.prototype.USER_LEAVE = "userLeave";
 Plugged.prototype.FLOOD_CHAT = "floodChat";
 Plugged.prototype.MOD_MOVE_DJ = "modMoveDJ";
+Plugged.prototype.JOINED_ROOM = "joinedRoom";
 Plugged.prototype.USER_UPDATE = "userUpdate";
 Plugged.prototype.CHAT_DELETE = "chatDelete";
 Plugged.prototype.FRIEND_JOIN = "friendJoin";
@@ -332,10 +343,8 @@ Plugged.prototype.connectSocket = function() {
 };
 
 Plugged.prototype.disconnect = function() {
-    this.watchUserCache(false);
-    this.sock.removeAllListeners();
-    this.sock.close();
-    this.sock = null;
+    console.err("disconnect FUNCTION DEPRECATED! will be removed with release 1.1.0");
+    this.logout();
 };
 
 Plugged.prototype.clearUserCache = function() {
@@ -441,6 +450,22 @@ Plugged.prototype.clearUserFromLists = function(id) {
     }
 };
 
+Plugged.prototype.checkForPreviousVote = function(vote) {
+    for(var i = 0, l = this.state.room.votes.length; i < l; i++) {
+        if(this.state.room.votes[i].id == vote.id) {
+            //only return true if vote direction hasn't changed
+            if(this.state.room.votes[i].direction !== vote.direction) {
+                this.state.room.votes[i].direction = vote.direction;
+                return false;
+            } else {
+                return true;
+            }
+        }
+    }
+    this.state.room.votes.push(vote);
+    return false;
+};
+
 // WebSocket action processor
 Plugged.prototype.wsaprocessor = function(self, msg) {
     var data = JSON.parse(msg.substr(3, msg.length - 5));
@@ -523,16 +548,11 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
         case self.GRAB:
 
-        // deletes a duplicate vote
-        // this happens when the user already clicked woot and decided
-        // grab the song later
-        for(var i = 0, l = self.state.room.votes.length; i < l; i++) {
-            if(self.state.room.votes[i].id == data.p) {
-                self.state.room.votes.splice(i, 1);
-                break;
-            }
+        for(var i = 0, l = self.state.room.grabs.length; i < l; i++) {
+            if(self.state.room.grabs[i] == data.p)
+                return;
         }
-        
+
         self.state.room.grabs.push(data.p);
         self.emit(self.GRAB_UPDATE, data.p);
         break;
@@ -544,8 +564,6 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.MOD_MOVE_DJ:
-        var i = self.state.room.booth.waitlist.splice(data.p.o, 1);
-        self.state.room.booth.waitlist.splice(data.n, 0, i);
         self.emit(self.MOD_MOVE_DJ, models.parseModMove(data.p));
         break;
 
@@ -558,12 +576,32 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
         break;
 
         case self.MOD_MUTE:
-        self.state.room.mutes.push(models.pushMute(data.p));
+        var mute = models.pushMute(data.p);
+        var time = (mute.time === self.MUTEDURATION.SHORT ? 
+            15*60*1000 : mute.time === self.MUTEDURATION.MEDIUM ? 
+            30*60*1000 : mute.time === self.MUTEDURATION.LONG ? 
+            45*60*1000 : 15*60*1000);
+
+        self.muteExpireArray.push(setTimeout(muteExpired.bind(self), time, mute));
+        self.state.room.mutes.push(mute);
         self.emit(self.MOD_MUTE, models.parseMute(data.p));
         break;
 
         case self.MOD_STAFF:
-        self.emit(self.MOD_STAFF, models.parsePromotion(data.p));
+        var promotion = models.parsePromotion(data.p);
+
+        for(var i = 0, l = self.state.room.users.length; i < l; i++) {
+            if(self.state.room.users[i].id == promotion.id) {
+                self.state.room.users[i].role = promotion.role;
+
+                if(self.removeCachedUserByID(self.state.room.users[i].id))
+                    self.cacheUser(self.state.room.users[i]);
+
+                break;
+            }
+        }
+
+        self.emit(self.MOD_STAFF, promotion);
         break;
 
         case self.MOD_SKIP:
@@ -600,6 +638,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
                 if(self.sleave)
                     self.cacheUser(user);
+
                 break;
             }
         }
@@ -629,8 +668,8 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
         case self.VOTE:
         var vote = models.pushVote(data.p);
-        self.state.room.votes.push(vote);
-        self.emit(self.VOTE, vote);
+        if(!self.checkForPreviousVote(vote))
+            self.emit(self.VOTE, vote);
         break;
 
         case self.CHAT_RATE_LIMIT:
@@ -756,6 +795,9 @@ Plugged.prototype.connect = function(room, callback) {
     this.joinRoom(room, function _joinedRoom(err) {
         if(!err) {
             this.watchUserCache(true);
+            this.clearUserCache();
+            this.clearChatCache();
+
             this.getRoomStats(function(err, stats) {
 
                 if(!err) {
@@ -765,6 +807,7 @@ Plugged.prototype.connect = function(room, callback) {
                     callback(err);
                 }
 
+            this.emit(this.JOINED_ROOM);
             }.bind(this));
 
         } else {
@@ -966,9 +1009,10 @@ Plugged.prototype.removeCachedUserByID = function(id) {
     for(var i = 0, l = this.state.usercache.length; i < l; i++) {
         if(this.state.usercache[i].user.id == id) {
             this.state.usercache.splice(i, 1);
-            break;
+            return true;
         }
     }
+    return false;
 };
 
 Plugged.prototype.removeCachedUserByName = function(username) {
@@ -1274,9 +1318,17 @@ Plugged.prototype.logout = function(callback) {
 
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
-            this.disconnect();
+            this.watchUserCache(false);
+            this.clearUserCache();
+            this.clearChatCache();
             this.flushQuery();
+
+            this.sock.close();
+            this.sock.removeAllListeners();
+
             this.log("Logged out.", 1, "green");
+
+            this.sock = null;
             this.auth = null;
             this.offset = 0;
 
