@@ -197,7 +197,8 @@ var parseRoom = function(data) {
         playback: parsePlayback(data.playback),
         role: data.role || 0,
         users: data.users || [],
-        votes: parseVotes(data.votes)
+        votes: parseVotes(data.votes),
+        muteExpire: data.muteExpire || []
     };
 };
 

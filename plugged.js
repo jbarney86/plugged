@@ -98,6 +98,9 @@ function muteExpired(mute) {
             break;
         }
     }
+
+    if(this.state.room.mutes.length === 0)
+        this.state.room.muteExpire = [];
 }
 
 function cacheChatMessage(msg) {
@@ -141,7 +144,6 @@ function Plugged() {
     this.log = function() {};
     this.state = models.createState();
     this.query = new Query();
-    this.muteExpireArray = [];
     this.cleanCacheInterval = -1;
     this.chatcachesize = 256;
     this.keepAliveID = -1;
@@ -170,6 +172,7 @@ Plugged.prototype.BANDURATION = {
 };
 
 Plugged.prototype.MUTEDURATION = {
+    NONE:   'o',
     SHORT:  's',
     MEDIUM: 'm',
     LONG:   'l'
@@ -201,6 +204,7 @@ Plugged.prototype.USERSTATUS = {
 Plugged.prototype.CONN_PART = "connPart";
 Plugged.prototype.CONNECTED = "connected";
 Plugged.prototype.CONN_ERROR = "connError";
+Plugged.prototype.CONN_WARNING = "connWarning";
 
 Plugged.prototype.SOCK_OPEN = "sockOpen";
 Plugged.prototype.SOCK_ERROR = "sockError";
@@ -345,6 +349,13 @@ Plugged.prototype.connectSocket = function() {
 Plugged.prototype.disconnect = function() {
     console.err("disconnect FUNCTION DEPRECATED! will be removed with release 1.1.0");
     this.logout();
+};
+
+Plugged.prototype.clearMuteExpireArray = function() {
+    for(var i = 0, l = this.state.room.muteExpire.length; i < l; i++)
+        clearTimeout(this.state.room.muteExpire[i]);
+
+    this.state.room.muteExpire = [];
 };
 
 Plugged.prototype.clearUserCache = function() {
@@ -582,13 +593,16 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             30*60*1000 : mute.time === self.MUTEDURATION.LONG ? 
             45*60*1000 : 15*60*1000);
 
-        self.muteExpireArray.push(setTimeout(muteExpired.bind(self), time, mute));
+        self.state.room.muteExpire.push(setTimeout(muteExpired.bind(self), time, mute));
         self.state.room.mutes.push(mute);
         self.emit(self.MOD_MUTE, models.parseMute(data.p));
         break;
 
         case self.MOD_STAFF:
         var promotion = models.parsePromotion(data.p);
+
+        if(self.state.self.id == promotion.id)
+            self.state.self.role = promotion.role;
 
         for(var i = 0, l = self.state.room.users.length; i < l; i++) {
             if(self.state.room.users[i].id == promotion.id) {
@@ -797,6 +811,7 @@ Plugged.prototype.connect = function(room, callback) {
             this.watchUserCache(true);
             this.clearUserCache();
             this.clearChatCache();
+            this.clearMuteExpireArray();
 
             this.getRoomStats(function(err, stats) {
 
@@ -825,6 +840,9 @@ Plugged.prototype.getCurrentRoomStats = function() {
 Plugged.prototype.getUserByID = function(id, checkCache) {
     checkCache = checkCache || false;
 
+    if(id == this.state.self.id)
+        return this.state.self;
+
     for(var i = 0, l = this.state.room.users.length; i < l; i++) {
         if(this.state.room.users[i].id == id)
             return this.state.room.users[i];
@@ -840,6 +858,9 @@ Plugged.prototype.getUserByID = function(id, checkCache) {
 
 Plugged.prototype.getUserByName = function(username, checkCache) {
     checkCache = checkCache || false;
+
+    if(username === this.state.self.username)
+        return this.state.self;
     
     for(var i = 0, l = this.state.room.users.length; i < l; i++) {
         if(this.state.room.users[i].username === username)
@@ -1319,6 +1340,7 @@ Plugged.prototype.logout = function(callback) {
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
             this.watchUserCache(false);
+            this.clearMuteExpireArray();
             this.clearUserCache();
             this.clearChatCache();
             this.flushQuery();
