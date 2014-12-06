@@ -92,9 +92,11 @@ function delMsg(msg, count) {
 }
 
 function keepAlive() {
-    if(this.keepAliveTries > 6) {
+    if(this.keepAliveTries >= 6) {
         this.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
         this.emit(this.CONN_PART, this.getRoomMeta());
+        clearInterval(this.keepAliveID);
+        this.keepAliveID = -1;
     } else {
         this.keepAliveTries++;
 
@@ -121,7 +123,12 @@ function loginClient(client, tries) {
     ], function _loggedIn(err) {
         if(!err) {
             client.connectSocket();
-            client.requestSelf();
+            client.requestSelf(function _requestSelfLogin(err) {
+                if(!err)
+                    client.emit(client.LOGIN_SUCCESS);
+                else
+                    client.emit(client.LOGIN_ERROR);
+            });
 
         } else {
 
@@ -132,7 +139,7 @@ function loginClient(client, tries) {
                 loginClient(client, ++tries);
             } else {
                 client.log("couldn't log in.", 0, "red");
-                client.emit(client.CONN_ERROR, "couldn't log in");
+                client.emit(client.LOGIN_ERROR, "couldn't log in");
             }
 
         }
@@ -203,11 +210,22 @@ Plugged.prototype.USERSTATUS = {
 };
 
 /*===== GENERAL EVENTS =====*/
+/* LOGIN BASED EVENTS */
+Plugged.prototype.LOGIN_ERROR = "loginError";
+Plugged.prototype.LOGIN_SUCCESS = "loginSuccess";
+
+Plugged.prototype.LOGOUT_ERROR = "logoutError";
+Plugged.prototype.LOGOUT_SUCCESS = "logoutSuccess";
+
+/* SOCKET RELATED */
 Plugged.prototype.CONN_PART = "connPart";
-Plugged.prototype.CONNECTED = "connected";
 Plugged.prototype.CONN_ERROR = "connError";
 Plugged.prototype.CONN_WARNING = "connWarning";
+Plugged.prototype.CONN_SUCCESS = "connSuccess";
+/* DEPRECATED! will be removed with release 1.1.0 */
+Plugged.prototype.CONNECTED = "connected";
 
+/* CORE SOCKET EVENTS */
 Plugged.prototype.SOCK_OPEN = "sockOpen";
 Plugged.prototype.SOCK_ERROR = "sockError";
 Plugged.prototype.SOCK_CLOSED = "sockClosed";
@@ -495,7 +513,9 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
     
     switch(data.a) {
         case self.ACK:
+            /*CONNECTED event is DEPRECATED! Will be removed with release 1.1.0*/
             self.emit((data.p === 1 ? self.CONNECTED : self.CONN_ERROR), data.p);
+            self.emit((data.p === 1 ? self.CONN_SUCCESS : self.CONN_ERROR), data.p);
             break;
 
         case self.ADVANCE:
@@ -1351,7 +1371,7 @@ Plugged.prototype.deleteMessage = function(chatID, callback) {
 };
 
 Plugged.prototype.logout = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
 
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
@@ -1373,9 +1393,19 @@ Plugged.prototype.logout = function(callback) {
             this.keepAliveTries = 0;
             this.keepAliveID = -1;
 
-            callback(null);
+            this.emit(this.LOGOUT_SUCCESS);
+
+            if(typeof callback === "function") {
+                console.error("logout argument 'callback' will be removed with version 1.1.0, please use the LOGOUT_SUCCES; LOGOUT_ERROR events");
+                callback();
+            }
         } else {
-            callback(err);
+            this.emit(this.LOGOUT_ERROR, err);
+
+            if(typeof callback === "function") {
+                console.error("logout argument 'callback' will be removed with version 1.1.0, please use the LOGOUT_SUCCES; LOGOUT_ERROR events");
+                callback(err);
+            }
         }
     }.bind(this));
 };
