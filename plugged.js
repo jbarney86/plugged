@@ -848,7 +848,7 @@ Plugged.prototype.connect = function(room, callback) {
 
             this.getRoomStats(function(err, stats) {
 
-                if(typeof callback !== "function")
+                if(typeof callback === "function")
                     console.error("callback is depreacted! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
 
                 if(!err) {
