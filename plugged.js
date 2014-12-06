@@ -848,21 +848,30 @@ Plugged.prototype.connect = function(room, callback) {
 
             this.getRoomStats(function(err, stats) {
 
-                if(typeof callback === "function")
-                    console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
-
                 if(!err) {
                     this.state.room = models.parseRoom(stats);
-                    callback(null, this.state);
                     this.emit(this.JOINED_ROOM);
+
+                    if(typeof callback === "function") {
+                        console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
+                        callback(null, this.state);
+                    }
                 } else {
                     callback(err);
                     this.emit(this.JOINED_ROOM, err);
+
+                    if(typeof callback === "function") {
+                        console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
+                        callback(null, this.state);
+                    }
                 }
             }.bind(this));
 
         } else {
-            callback(err);
+            if(typeof callback === "function") {
+                console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
+                callback(err);
+            }
         }
     }.bind(this));
 };
