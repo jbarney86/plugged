@@ -91,6 +91,16 @@ function delMsg(msg, count) {
     }
 }
 
+function keepAlive() {
+    if(this.keepAliveTries > 6) {
+        this.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
+        this.emit(this.CONN_PART, this.getRoomMeta());
+    } else {
+        this.keepAliveTries++;
+        this.emit(this.CONN_WARNING, this.keepAliveTries);
+    }
+}
+
 function muteExpired(mute) {
     for(var i = this.state.room.mutes.length - 1; 0 <= i; i--) {
         if(this.state.room.mutes[i].id == mute.id) {
@@ -100,15 +110,6 @@ function muteExpired(mute) {
         }
     }
 }
-
-function cacheChatMessage(msg) {
-    if(typeof msg !== "undefined") {
-        this.state.chatcache.push(msg);
-
-        if(this.state.chatcache.length > this.chatcachesize)
-            this.state.chatcache.shift();
-    }
-};
 
 function loginClient(client, tries) {
     async.waterfall([
@@ -144,6 +145,7 @@ function Plugged() {
     this.query = new Query();
     this.cleanCacheInterval = -1;
     this.chatcachesize = 256;
+    this.keepAliveTries = 0;
     this.keepAliveID = -1;
     this.offset = 0;
     this.credentials = null;
@@ -245,7 +247,7 @@ Plugged.prototype.MOD_REMOVE_DJ = "modRemoveDJ";
 Plugged.prototype.DJ_LIST_LOCKED = "djListLocked";
 Plugged.prototype.PLAYLIST_CYCLE = "playlistCycle";
 Plugged.prototype.FRIEND_REQUEST = "friendRequest";
-Plugged.prototype.WAITLIST_UPDATE = "waitListUpdate";
+Plugged.prototype.WAITLIST_UPDATE = "djListUpdate";
 Plugged.prototype.ROOM_NAME_UPDATE = "roomNameUpdate";
 Plugged.prototype.MAINTENANCE_MODE = "plugMaintenance";
 Plugged.prototype.ROOM_WELCOME_UPDATE = "roomWelcomeUpdate";
@@ -491,266 +493,267 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
     
     switch(data.a) {
         case self.ACK:
-        self.emit((data.p === 1 ? self.CONNECTED : self.CONN_ERROR), data.p);
-        break;
+            self.emit((data.p === 1 ? self.CONNECTED : self.CONN_ERROR), data.p);
+            break;
 
         case self.ADVANCE:
-        var previous = self.state.room.playback.media;
+            var previous = self.state.room.playback.media;
 
-        self.state.room.booth.dj = data.p.c;
-        self.state.room.booth.waitlist = data.p.d;
-        self.state.self.vote = 0;
-        self.state.self.grab = 0;
-        self.state.room.grabs = [];
-        self.state.room.votes = [];
+            self.state.room.booth.dj = data.p.c;
+            self.state.room.booth.waitlist = data.p.d;
+            self.state.self.vote = 0;
+            self.state.self.grab = 0;
+            self.state.room.grabs = [];
+            self.state.room.votes = [];
 
-        self.state.room.playback.media = models.parseMedia(data.p.m);
-        self.state.room.playback.historyID = data.p.h;
-        self.state.room.playback.playlistID = data.p.p;
-        self.state.room.playback.startTime = data.p.t;
+            self.state.room.playback.media = models.parseMedia(data.p.m);
+            self.state.room.playback.historyID = data.p.h;
+            self.state.room.playback.playlistID = data.p.p;
+            self.state.room.playback.startTime = data.p.t;
 
-        self.emit(self.ADVANCE, self.state.room.booth, self.state.room.playback, self.previous);
-        break;
+            self.emit(self.ADVANCE, self.state.room.booth, self.state.room.playback, self.previous);
+            break;
 
         case self.CHAT:
-        var chat = models.parseChat(data.p);
+            var chat = models.parseChat(data.p);
 
-        if(self.ccache)
-            cacheChatMessage.call(self, chat);
+            if(self.ccache) {
+                self.state.chatcache.push(chat);
 
-        if(chat.message.indexOf('@' + self.state.self.username) > -1)
-            self.emit(self.CHAT_MENTION, chat);
-        else if(chat.message.charAt(0) == '/')
-            self.emit(self.CHAT_COMMAND, chat);
+                if(self.state.chatcache.length > self.chatcachesize)
+                    self.state.chatcache.shift();
+            }
+
+            if(chat.message.indexOf('@' + self.state.self.username) > -1)
+                self.emit(self.CHAT_MENTION, chat);
+            else if(chat.message.charAt(0) == '/')
+                self.emit(self.CHAT_COMMAND, chat);
         
-        self.emit(self.CHAT, chat);
-        break;
+            self.emit(self.CHAT, chat);
+            break;
 
         case self.CHAT_DELETE:
-        var chat = models.parseChatDelete(data.p);
+            var chat = models.parseChatDelete(data.p);
 
-        if(self.ccache)
-            self.removeChat(chat.cid);
+            if(self.ccache)
+                self.removeChat(chat.cid);
 
-        self.emit(self.CHAT_DELETE, chat);
-        break;
+            self.emit(self.CHAT_DELETE, chat);
+            break;
 
         case self.PLAYLIST_CYCLE:
-        self.emit(self.PLAYLIST_CYCLE, data.p);
-        break;
+            self.emit(self.PLAYLIST_CYCLE, data.p);
+            break;
 
         case self.DJ_LIST_CYCLE:
-        self.state.room.booth.shouldCycle = data.p.f;
-        self.emit(self.DJ_LIST_CYCLE, models.parseCycle(data.p));
-        break;
+            self.state.room.booth.shouldCycle = data.p.f;
+            self.emit(self.DJ_LIST_CYCLE, models.parseCycle(data.p));
+            break;
 
         case self.DJ_LIST_LOCKED:
-        self.state.room.booth.isLocked = data.p.f;
-        self.emit(self.DJ_LIST_LOCKED, models.parseLock(data.p));
-        break;
+            self.state.room.booth.isLocked = data.p.f;
+            self.emit(self.DJ_LIST_LOCKED, models.parseLock(data.p));
+            break;
 
-        case "djListUpdate":
-        self.state.room.booth.waitlist = data.p;
-        self.emit(self.WAITLIST_UPDATE, data.p);
-        break;
+        case self.WAITLIST_UPDATE:
+            self.state.room.booth.waitlist = data.p;
+            self.emit(self.WAITLIST_UPDATE, data.p);
+            break;
 
         case self.EARN:
-        self.state.self.xp = data.p.xp;
-        self.state.self.ep = data.p.ep;
-        self.emit(self.EARN, models.parseXP(data.p));
-        break;
+            self.state.self.xp = data.p.xp;
+            self.state.self.ep = data.p.ep;
+            self.emit(self.EARN, models.parseXP(data.p));
+            break;
 
         case self.LEVEL_UP:
-        self.state.self.level++;
-        self.emit(self.LEVEL_UP, data.p);
-        break;
+            self.state.self.level++;
+            self.emit(self.LEVEL_UP, data.p);
+            break;
 
         case self.GRAB:
 
-        for(var i = 0, l = self.state.room.grabs.length; i < l; i++) {
-            if(self.state.room.grabs[i] == data.p)
-                return;
-        }
+            for(var i = 0, l = self.state.room.grabs.length; i < l; i++) {
+                if(self.state.room.grabs[i] == data.p)
+                    return;
+            }
 
-        self.state.room.grabs.push(data.p);
-        self.emit(self.GRAB_UPDATE, data.p);
-        break;
+            self.state.room.grabs.push(data.p);
+            self.emit(self.GRAB_UPDATE, data.p);
+            break;
 
         case self.MOD_BAN:
-        self.clearUserFromLists(data.p.i);
-        self.state.room.meta.population--;
-        self.emit(self.MOD_BAN, models.parseModBan(data.p));
-        break;
+            self.clearUserFromLists(data.p.i);
+            self.state.room.meta.population--;
+            self.emit(self.MOD_BAN, models.parseModBan(data.p));
+            break;
 
         case self.MOD_MOVE_DJ:
-        self.emit(self.MOD_MOVE_DJ, models.parseModMove(data.p));
-        break;
+            self.emit(self.MOD_MOVE_DJ, models.parseModMove(data.p));
+            break;
 
         case self.MOD_REMOVE_DJ:
-        self.emit(self.MOD_REMOVE_DJ, models.parseModRemove(data.p));
-        break;
+            self.emit(self.MOD_REMOVE_DJ, models.parseModRemove(data.p));
+            break;
 
         case self.MOD_ADD_DJ:
-        self.emit(self.MOD_ADD_DJ, data.p);
-        break;
+            self.emit(self.MOD_ADD_DJ, data.p);
+            break;
 
         case self.MOD_MUTE:
-        var mute = models.pushMute(data.p);
-        var time = (mute.time === self.MUTEDURATION.SHORT ? 
-            15*60*1000 : mute.time === self.MUTEDURATION.MEDIUM ? 
-            30*60*1000 : mute.time === self.MUTEDURATION.LONG ? 
-            45*60*1000 : 15*60*1000);
+            var mute = models.parseMute(data.p);
+            var time = (mute.duration === self.MUTEDURATION.SHORT ? 
+                15*60*1000 : mute.duration === self.MUTEDURATION.MEDIUM ? 
+                30*60*1000 : mute.duration === self.MUTEDURATION.LONG ? 
+                45*60*1000 : 15*60*1000);
 
-        if(mute.time === self.MUTEDURATION.NONE)
-            self.clearMute(mute.id);
-        else
-            self.state.room.mutes.push({id: mute.id, time: mute.time, interval: setTimeout(muteExpired.bind(self), time, mute) });
+            if(mute.duration === self.MUTEDURATION.NONE)
+                self.clearMute(mute.id);
+            else
+                self.state.room.mutes.push({id: mute.id, time: mute.duration, interval: setTimeout(muteExpired.bind(self), time, mute) });
         
-        self.emit(self.MOD_MUTE, models.parseMute(data.p));
-        break;
+            self.emit(self.MOD_MUTE, mute);
+            break;
 
         case self.MOD_STAFF:
-        var promotion = models.parsePromotion(data.p);
+            var promotion = models.parsePromotion(data.p);
 
-        if(self.state.self.id == promotion.id)
-            self.state.self.role = promotion.role;
+            if(self.state.self.id == promotion.id)
+                self.state.self.role = promotion.role;
 
-        for(var i = 0, l = self.state.room.users.length; i < l; i++) {
-            if(self.state.room.users[i].id == promotion.id) {
-                self.state.room.users[i].role = promotion.role;
+            for(var i = 0, l = self.state.room.users.length; i < l; i++) {
+                if(self.state.room.users[i].id == promotion.id) {
+                    self.state.room.users[i].role = promotion.role;
 
-                if(self.removeCachedUserByID(self.state.room.users[i].id))
-                    self.cacheUser(self.state.room.users[i]);
+                    if(self.removeCachedUserByID(self.state.room.users[i].id))
+                        self.cacheUser(self.state.room.users[i]);
 
-                break;
+                    break;
+                }
             }
-        }
 
-        self.emit(self.MOD_STAFF, promotion);
-        break;
+            self.emit(self.MOD_STAFF, promotion);
+            break;
 
         case self.MOD_SKIP:
-        self.emit(self.MOD_SKIP, data.p);
-        break;
+            self.emit(self.MOD_SKIP, data.p);
+            break;
 
         case self.SKIP:
-        self.emit(self.SKIP, data.p);
-        break;
+            self.emit(self.SKIP, data.p);
+            break;
 
         case self.ROOM_NAME_UPDATE:
-        self.state.room.meta.name = data.p.n;
-        self.emit(self.ROOM_NAME_UPDATE, models.parseRoomNameUpdate(data.p));
-        break;
+            self.state.room.meta.name = data.p.n;
+            self.emit(self.ROOM_NAME_UPDATE, models.parseRoomNameUpdate(data.p));
+            break;
 
         case self.ROOM_DESCRIPTION_UPDATE:
-        self.state.room.meta.description = data.p.d;
-        self.emit(self.ROOM_DESCRIPTION_UPDATE, models.parseRoomDescriptionUpdate(data.p));
-        break;
+            self.state.room.meta.description = data.p.d;
+            self.emit(self.ROOM_DESCRIPTION_UPDATE, models.parseRoomDescriptionUpdate(data.p));
+            break;
 
         case self.ROOM_WELCOME_UPDATE:
-        self.state.room.meta.welcome = data.p.w;
-        self.emit(self.ROOM_WELCOME_UPDATE, models.parseRoomWelcomeUpdate(data.p));
-        break;
+            self.state.room.meta.welcome = data.p.w;
+            self.emit(self.ROOM_WELCOME_UPDATE, models.parseRoomWelcomeUpdate(data.p));
+            break;
 
         case self.USER_LEAVE:
-        var user = undefined;
+            var user = undefined;
+            self.state.room.meta.population--;
 
-        for(var i = 0, l = self.state.room.users.length; i < l; i++) {
-            if(self.state.room.users[i].id == data.p) {
-                self.clearUserFromLists(data.p);
-                self.state.room.meta.population--;
-                user = self.state.room.users.splice(i, 1);
+            for(var i = 0, l = self.state.room.users.length; i < l; i++) {
+                if(self.state.room.users[i].id == data.p) {
+                    self.clearUserFromLists(data.p);
+                    user = self.state.room.users.splice(i, 1);
 
-                if(self.sleave)
-                    self.cacheUser(user);
+                    if(self.sleave)
+                        self.cacheUser(user);
 
-                break;
+                    break;
+                }
             }
-        }
 
-        self.emit(self.USER_LEAVE, user);
-        break;
+            self.emit(self.USER_LEAVE, user);
+            break;
 
         case self.USER_JOIN:
-        var user = models.parseUser(data.p)
-        self.state.room.users.push(user);
-        self.state.room.meta.population++;
+            var user = models.parseUser(data.p)
+            self.state.room.users.push(user);
+            self.state.room.meta.population++;
 
-        if(self.isFriend(user.id))
-            self.emit(self.FRIEND_JOIN, user);
-        else
-            self.emit(self.USER_JOIN, user);
-        break;
+            if(self.isFriend(user.id))
+                self.emit(self.FRIEND_JOIN, user);
+            else
+                self.emit(self.USER_JOIN, user);
+            break;
 
         case self.USER_UPDATE:
-        self.emit(self.USER_UPDATE, models.parseUserUpdate(data.p));
-        break;
+            self.emit(self.USER_UPDATE, models.parseUserUpdate(data.p));
+            break;
 
         case self.FRIEND_REQUEST:
-        var user = self.getUserByName(data.p);
-        self.emit(self.FRIEND_REQUEST, user ? user : data.p);
-        break;
+            var user = self.getUserByName(data.p);
+            self.emit(self.FRIEND_REQUEST, user ? user : data.p);
+            break;
 
         case self.VOTE:
-        var vote = models.pushVote(data.p);
-        if(!self.checkForPreviousVote(vote))
-            self.emit(self.VOTE, vote);
-        break;
+            var vote = models.pushVote(data.p);
+            if(!self.checkForPreviousVote(vote))
+                self.emit(self.VOTE, vote);
+            break;
 
         case self.CHAT_RATE_LIMIT:
-        self.emit(self.CHAT_RATE_LIMIT);
-        break;
+            self.emit(self.CHAT_RATE_LIMIT);
+            break;
 
         case self.FLOOD_API:
-        self.emit(self.FLOOD_API);
-        break;
+            self.emit(self.FLOOD_API);
+            break;
 
         case self.FLOOD_CHAT:
-        self.emit(self.FLOOD_CHAT);
-        break;
+            self.emit(self.FLOOD_CHAT);
+            break;
 
         case self.KILL_SESSION:
-        self.emit(self.KILL_SESSION, data.p);
-        break;
+            self.emit(self.KILL_SESSION, data.p);
+            break;
 
         case self.PLUG_UPDATE:
-        self.emit(self.PLUG_UPDATE);
-        break;
+            self.emit(self.PLUG_UPDATE);
+            break;
 
         case self.PLUG_MESSAGE:
-        self.emit(self.PLUG_MESSAGE, data.p);
-        break;
+            self.emit(self.PLUG_MESSAGE, data.p);
+            break;
 
         case self.MAINTENANCE_MODE:
-        self.emit(self.MAINTENANCE_MODE);
-        break;
+            self.emit(self.MAINTENANCE_MODE);
+            break;
 
         case self.BAN_IP:
-        self.emit(self.BAN_IP);
-        break;
+            self.emit(self.BAN_IP);
+            break;
 
         case self.BAN:
-        self.emit(self.BAN, models.parseBan(data.p));
-        break;
+            self.emit(self.BAN, models.parseBan(data.p));
+            break;
 
         case self.NAME_CHANGED:
-        self.emit(self.NAME_CHANGED);
-        break;
+            self.emit(self.NAME_CHANGED);
+            break;
 
         default:
-        self.log("unknown action: " + data.a, 1, "white");
-        break;
+            self.log("unknown action: " + data.a, 1, "white");
+            break;
     }
 };
 
 Plugged.prototype.keepAliveCheck = function() {
-    clearTimeout(this.keepAliveID);
+    this.keepAliveTries = 0;
 
-    this.keepAliveID = setTimeout(function(self) {
-        self.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
-
-        self.emit(self.CONN_PART, self.getRoomMeta());
-    }, 180*1000, this);
+    if(this.keepAliveID < 0)
+        this.keepAliveID = setInterval(keepAlive.bind(this), 30*1000);
 };
 
 Plugged.prototype.sendChat = function(message, deleteTimeout) {
@@ -1355,6 +1358,7 @@ Plugged.prototype.logout = function(callback) {
             this.clearUserCache();
             this.clearChatCache();
             this.flushQuery();
+            clearTimeout(this.keepAliveID);
 
             this.sock.close();
             this.sock.removeAllListeners();
@@ -1364,6 +1368,8 @@ Plugged.prototype.logout = function(callback) {
             this.sock = null;
             this.auth = null;
             this.offset = 0;
+            this.keepAliveTries = 0;
+            this.keepAliveID = -1;
 
             callback(null);
         } else {
