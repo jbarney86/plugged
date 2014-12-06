@@ -839,9 +839,6 @@ Plugged.prototype.connect = function(room, callback) {
     if(!room)
         throw new Error("room has to be defined");
 
-    if(typeof callback !== "function")
-        throw new Error("callback has to be declared");
-
     this.joinRoom(room, function _joinedRoom(err) {
         if(!err) {
             this.watchUserCache(true);
@@ -851,14 +848,17 @@ Plugged.prototype.connect = function(room, callback) {
 
             this.getRoomStats(function(err, stats) {
 
+                if(typeof callback !== "function")
+                    console.error("callback is depreacted! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
+
                 if(!err) {
                     this.state.room = models.parseRoom(stats);
                     callback(null, this.state);
+                    this.emit(this.JOINED_ROOM);
                 } else {
                     callback(err);
+                    this.emit(this.JOINED_ROOM, err);
                 }
-
-            this.emit(this.JOINED_ROOM);
             }.bind(this));
 
         } else {
