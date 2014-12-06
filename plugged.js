@@ -97,7 +97,9 @@ function keepAlive() {
         this.emit(this.CONN_PART, this.getRoomMeta());
     } else {
         this.keepAliveTries++;
-        this.emit(this.CONN_WARNING, this.keepAliveTries);
+
+        if(this.keepAliveTries > 3)
+            this.emit(this.CONN_WARNING, this.keepAliveTries);
     }
 }
 
