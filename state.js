@@ -82,15 +82,6 @@ var parseMutes = function(data) {
     return arr;
 };
 
-var pushMute = function(mute) {
-    mute = mute || {};
-
-    return {
-        id: mute.i || -1,
-        time: mute.d || 's'
-    };
-};
-
 var parseMute = function(data) {
     data = data || {};
 
@@ -385,7 +376,6 @@ var parseRoomWelcomeUpdate = function(data) {
 exports.parseXP = parseXP;
 exports.parseBan = parseBan;
 exports.pushVote = pushVote;
-exports.pushMute = pushMute;
 exports.parseChat = parseChat;
 exports.parseSelf = parseSelf;
 exports.parseUser = parseUser;
