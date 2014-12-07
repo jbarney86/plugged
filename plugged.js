@@ -77,7 +77,7 @@ function setErrorMessage(statusCode, msg) {
     };
 }
 
-function delMsg(msg, count) {
+/*function delMsg(msg, count) {
     count = count || 0;
 
     for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
@@ -89,7 +89,7 @@ function delMsg(msg, count) {
             break;
         }               
     }
-}
+}*/
 
 function keepAlive() {
     if(this.keepAliveTries >= 6) {
@@ -160,8 +160,8 @@ function Plugged() {
     this.credentials = null;
     this.sock = null;
     this.auth = null;
-    this.sleave = false;
-    this.ccache = false;
+    this.sleave = false;                    /* userleave cache toggle */
+    this.ccache = false;                    /* chatcache toggle */
 }
 
 util.inherits(Plugged, EventEmitter);
@@ -425,6 +425,37 @@ Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
             this.state.chatcache.splice(i, 1);
         }
     } 
+};
+
+Plugged.prototype.removeChatByBody = function(messages, cacheOnly) {
+    cacheOnly = cacheOnly || false;
+
+    //wrap it into an array so we can streamline the code instead of branching it and
+    //creating needless redundancy
+    if(!Array.isArray(messages))
+        messages = [messages];
+
+    if(typeof messages.length <= 0)
+        return;
+
+    for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
+        if(messages.length <= 0)
+            break;
+
+        for(var l = messages.length - 1; 0 <= l; l--) {
+            if(typeof messages[l] === "string" && typeof this.state.chatcache[i] !== "undefined" &&
+                this.state.self.username === this.state.chatcache[i].username &&
+                this.state.chatcache[i].message === messages[l]) {
+                
+                if(!cacheOnly)
+                    this.deleteMessage(this.state.chatcache[i].cid);
+
+                this.state.chatcache.splice(i, 1);
+                messages.splice(l, 1);
+                break;
+            }
+        }
+    }
 };
 
 Plugged.prototype.removeChat = function(cid, cacheOnly) {
@@ -785,33 +816,36 @@ Plugged.prototype.sendChat = function(message, deleteTimeout) {
         message = message.toString();
 
     if(message.indexOf('"') >= 0)
-        message = message.split('"').join("&#34;");
+        message = message.replace('"', "&#34;");
 
     if(message.indexOf("'") >= 0)
-        message = message.split("'").join("&#39;");
+        message = message.replace("'", "&#39;");
 
 
-    if(message.length <= 256) {
+    if(message.length <= 255) {
         this.sock.sendMessage("chat", message, this.offset);
 
-        if(deleteTimeout > 0 && this.ccache)
-            setTimeout(delMsg.bind(this), deleteTimeout, message);
+        if(deleteTimeout > 0)
+            setTimeout(this.removeChatByBody.bind(this), deleteTimeout, message);
 
     } else {
-        var splits = Math.floor(message.length / 256);
+        var splits = Math.floor(message.length / 255);
 
-        var _multiMessageFunc = function(self, msg, s, cs) {
-            self.sock.sendMessage("chat", msg.slice(cs*256, (cs+1)*256));
+        var _multiMessageFunc = function(self, msg, splits, currentSplit, msgArray) {
+            var hsplit = msg.slice(currentSplit*255, (currentSplit+1)*255);
 
-            if(cs < s) {
-                setTimeout(_multiMessageFunc, 600, self, msg, s, ++cs);
+            msgArray.push(hsplit);
+            self.sock.sendMessage("chat", hsplit);
+
+            if(currentSplit < splits) {
+                setTimeout(_multiMessageFunc, 600, self, msg, splits, ++currentSplit, msgArray);
             } else {
-                if(deleteTimeout > 0 && self.ccache)
-                    setTimeout(delMsg.bind(self), deleteTimeout, message.slice(0, 255), s);
+                if(deleteTimeout > 0)
+                    setTimeout(self.removeChatByBody.bind(self), deleteTimeout, msgArray);
             }
         };
 
-        _multiMessageFunc(this, message, splits, 0);
+        _multiMessageFunc(this, message, splits, 0, []);
     }
 };
 
