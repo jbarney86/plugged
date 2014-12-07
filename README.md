@@ -19,14 +19,15 @@ var plug = new Plugged();
 // log into the service
 plug.login({ email: "examplemail@examplehost.com", password: "examplepassword" });
 
-plug.on(plug.CONNECTED, function() {
-    plug.connect("example-room-slug", function(err) {
-        // woot song on advance
-        if(!err)
-            plug.on(plug.ADVANCE, function() {
-                //WOOT!
-                plug.woot();
-            });
+plug.on(plug.LOGIN_SUCCESS, function _loginSuccess() {
+    plug.cacheChat(true);
+    plug.connect("exampleroom");
+});
+
+plug.on(plug.JOINED_ROOM, function _joinedRoom() {
+    plug.on(plug.ADVANCE, function() {
+        //WOOT!
+        plug.woot();
     });
 });
 ```
