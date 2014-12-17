@@ -20,11 +20,13 @@ var endpoints = {
     HISTORY: baseURL +      "/_/rooms/history",
     IGNORES: baseURL +      "/_/ignores",
     INVITES: baseURL +      "/_/friends/invites",
+    FACEBOOK: baseURL +     "/_/auth/facebook",
     PRODUCTS: baseURL +     "/_/store/products",
     INVENTORY: baseURL +    "/_/store/inventory",
     ROOMSTATS: baseURL +    "/_/rooms/state",
     USERSTATS: baseURL +    "/_/users/",
     PLAYLISTS: baseURL +    "/_/playlists",
+    PURCHASES: baseURL +    "/_/users/me/purchase",
     USERHISTORY: baseURL +  "/_/users/me/history",
     FAVORITEROOM: baseURL + "/_/rooms/favorites",
     VALIDATEROOM: baseURL + "/_/rooms/validate/",
@@ -33,6 +35,7 @@ var endpoints = {
     BLURB: baseURL +        "/_/profile/blurb",
     CYCLE: baseURL +        "/_/booth/cycle",
     LOGIN: baseURL +        "/_/auth/login", 
+    BADGE: baseURL +        "/_/users/badge",
     AVATAR: baseURL +       "/_/users/avatar",
     STATUS: baseURL +       "/_/users/status",
     LANGUAGE: baseURL +     "/_/users/language",
@@ -816,10 +819,10 @@ Plugged.prototype.sendChat = function(message, deleteTimeout) {
         message = message.toString();
 
     if(message.indexOf('"') >= 0)
-        message = message.replace('"', "&#34;");
+        message = message.replace(/"/g, "&#34;");
 
     if(message.indexOf("'") >= 0)
-        message = message.replace("'", "&#39;");
+        message = message.replace(/'/g, "&#39;");
 
 
     if(message.length <= 255) {
