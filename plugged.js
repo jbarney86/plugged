@@ -1,5 +1,5 @@
 var EventEmitter = require("events").EventEmitter;
-var models = require("./state.js");
+var models = require("./state");
 var Query = require("./query");
 var WebSocket = require("ws");
 var async = require("async");
@@ -93,30 +93,6 @@ function setErrorMessage(statusCode, msg) {
         }               
     }
 }*/
-
-function keepAlive() {
-    if(this.keepAliveTries >= 6) {
-        this.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
-        this.emit(this.CONN_PART, this.getRoomMeta());
-        clearInterval(this.keepAliveID);
-        this.keepAliveID = -1;
-    } else {
-        this.keepAliveTries++;
-
-        if(this.keepAliveTries > 3)
-            this.emit(this.CONN_WARNING, this.keepAliveTries);
-    }
-}
-
-function muteExpired(mute) {
-    for(var i = this.state.room.mutes.length - 1; 0 <= i; i--) {
-        if(this.state.room.mutes[i].id == mute.id) {
-            clearTimeout(this.state.room.mutes[i].interval);
-            this.state.room.mutes.splice(i, 1);
-            break;
-        }
-    }
-}
 
 function loginClient(client, tries) {
     async.waterfall([
@@ -275,6 +251,30 @@ Plugged.prototype.ROOM_NAME_UPDATE = "roomNameUpdate";
 Plugged.prototype.MAINTENANCE_MODE = "plugMaintenance";
 Plugged.prototype.ROOM_WELCOME_UPDATE = "roomWelcomeUpdate";
 Plugged.prototype.ROOM_DESCRIPTION_UPDATE = "roomDescriptionUpdate";
+
+Plugged.prototype._keepAlive = function() {
+    if(this.keepAliveTries >= 6) {
+        this.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
+        this.emit(this.CONN_PART, this.getRoomMeta());
+        clearInterval(this.keepAliveID);
+        this.keepAliveID = -1;
+    } else {
+        this.keepAliveTries++;
+
+        if(this.keepAliveTries > 3)
+            this.emit(this.CONN_WARNING, this.keepAliveTries);
+    }
+};
+
+Plugged.prototype._muteExpired = function(mute) {
+    for(var i = this.state.room.mutes.length - 1; 0 <= i; i--) {
+        if(this.state.room.mutes[i].id == mute.id) {
+            clearTimeout(this.state.room.mutes[i].interval);
+            this.state.room.mutes.splice(i, 1);
+            break;
+        }
+    }
+};
 
 Plugged.prototype.getAuthAndServerTime = function(data, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
@@ -612,8 +612,8 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             break;
 
         case self.WAITLIST_UPDATE:
+            self.emit(self.WAITLIST_UPDATE, self.state.room.booth.waitlist, data.p);
             self.state.room.booth.waitlist = data.p;
-            self.emit(self.WAITLIST_UPDATE, data.p);
             break;
 
         case self.EARN:
@@ -666,7 +666,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             if(mute.duration === self.MUTEDURATION.NONE)
                 self.clearMute(mute.id);
             else
-                self.state.room.mutes.push({id: mute.id, time: mute.duration, interval: setTimeout(muteExpired.bind(self), time, mute) });
+                self.state.room.mutes.push({id: mute.id, time: mute.duration, interval: setTimeout(self._muteExpired, time, mute) });
         
             self.emit(self.MOD_MUTE, mute);
             break;
@@ -721,7 +721,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             for(var i = 0, l = self.state.room.users.length; i < l; i++) {
                 if(self.state.room.users[i].id == data.p) {
                     self.clearUserFromLists(data.p);
-                    user = self.state.room.users.splice(i, 1);
+                    user = self.state.room.users.splice(i, 1)[0];
 
                     if(self.sleave)
                         self.cacheUser(user);
@@ -809,7 +809,7 @@ Plugged.prototype.keepAliveCheck = function() {
     this.keepAliveTries = 0;
 
     if(this.keepAliveID < 0)
-        this.keepAliveID = setInterval(keepAlive.bind(this), 30*1000);
+        this.keepAliveID = setInterval(this._keepAlive, 30*1000);
 };
 
 Plugged.prototype.sendChat = function(message, deleteTimeout) {
