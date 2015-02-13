@@ -20,7 +20,6 @@ var endpoints = {
     HISTORY: baseURL +      "/_/rooms/history",
     IGNORES: baseURL +      "/_/ignores",
     INVITES: baseURL +      "/_/friends/invites",
-    FACEBOOK: baseURL +     "/_/auth/facebook",
     PRODUCTS: baseURL +     "/_/store/products",
     INVENTORY: baseURL +    "/_/store/inventory",
     ROOMSTATS: baseURL +    "/_/rooms/state",
@@ -67,8 +66,8 @@ WebSocket.prototype.sendMessage = function(type, data, offset) {
 
     if(typeof type === "string" && (typeof data === "string" || typeof data === "number")) {
         this.send([
-            '"{\\"a\\":\\"', type, '\\",\\"p\\":\\"', data, 
-            '\\",\\"t\\":\\"', Date.now() - offset, '\\"}"'
+            '{"a":"', type, '","p":"', data, 
+            '","t":', Date.now() - offset, '}'
             ].join(''));
     }
 };
@@ -227,6 +226,7 @@ Plugged.prototype.MOD_STAFF = "modStaff";
 Plugged.prototype.USER_JOIN = "userJoin";
 Plugged.prototype.FLOOD_API = "floodAPI";
 Plugged.prototype.MOD_ADD_DJ = "modAddDJ";
+Plugged.prototype.PLUG_ERROR = "plugError";
 Plugged.prototype.USER_LEAVE = "userLeave";
 Plugged.prototype.FLOOD_CHAT = "floodChat";
 Plugged.prototype.MOD_MOVE_DJ = "modMoveDJ";
@@ -261,13 +261,13 @@ Plugged.prototype._keepAlive = function() {
     } else {
         this.keepAliveTries++;
 
-        if(this.keepAliveTries > 3)
+        if(this.keepAliveTries > 1)
             this.emit(this.CONN_WARNING, this.keepAliveTries);
     }
 };
 
 Plugged.prototype._muteExpired = function(mute) {
-    for(var i = this.state.room.mutes.length - 1; 0 <= i; i--) {
+    for(var i = this.state.room.mutes.length - 1; i >= 0; i--) {
         if(this.state.room.mutes[i].id == mute.id) {
             clearTimeout(this.state.room.mutes[i].interval);
             this.state.room.mutes.splice(i, 1);
@@ -325,19 +325,21 @@ Plugged.prototype.connectSocket = function() {
     this.log("Server: " + sid, 3, "yellow");
     this.log("ID: " + id, 3, "yellow");
 
-    this.sock = new WebSocket("wss://shalamar.plug.dj/socket/" + sid + '/' + id + "/websocket");
+    this.sock = new WebSocket("wss://godj.plug.dj:443/socket");
 
     /*================= SOCK OPENED =================*/
     this.sock.on("open", function _sockOpen() {
         self.log("socket opened", 3, "magenta");
         self.emit(self.SOCK_OPEN, self);
+        this.sendMessage("auth", self.auth, self.offset);
+        self.keepAliveCheck.call(self);
     });
 
     /*================= SOCK CLOSED =================*/
     this.sock.on("close", function _sockClose() {
         self.log("sock closed", 3, "magenta");
         self.emit(self.SOCK_CLOSED, self);
-    });
+    })
 
     /*================= SOCK ERROR ==================*/
     this.sock.on("error", function _sockError(err) {
@@ -348,24 +350,13 @@ Plugged.prototype.connectSocket = function() {
 
     /*================= SOCK MESSAGE =================*/
     this.sock.on("message", function _receivedMessage(msg) {
-        switch(msg.charAt(0)) {
-            case "o":
-                this.sendMessage("auth", self.auth, self.offset);
-                self.keepAliveCheck.call(self);
-                break;
+        if(typeof msg !== "string")
+            return;
 
-            case "h":
-                self.keepAliveCheck.call(self);
-                break;
-
-            case "a":
-                self.wsaprocessor(self, msg);
-                break;
-
-            default:
-                self.log(["unknown message: ", msg].join(''), 1, "yellow");
-                break;
-        }
+        if(msg.charAt(0) === 'h')
+            self.keepAliveCheck.call(self);
+        else
+            self.wsaprocessor(self, msg);
     });
 };
 
@@ -396,7 +387,7 @@ Plugged.prototype.clearUserCache = function() {
 };
 
 Plugged.prototype.cleanUserCache = function() {
-    for(var i = 0, l = this.state.usercache.length; i < l; i++) {
+    for(var i = this.state.usercache.length - 1; i >= 0; i--) {
         if(Date.now() - this.state.usercache[i].timestamp > 5*60*1000)
             this.state.usercache.splice(i, 1);
     }
@@ -405,7 +396,7 @@ Plugged.prototype.cleanUserCache = function() {
 Plugged.prototype.getChatByUser = function(username) {
     var messages = [];
 
-    for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
+    for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
         if(this.state.chatcache[i].username === username)
             messages.push(this.state.chatcache[i]);
     }
@@ -420,7 +411,7 @@ Plugged.prototype.getChat = function() {
 Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
     cacheOnly = cacheOnly || false;
 
-    for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
+    for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
         if(this.state.chatcache[i].username === username) {
             if(!cacheOnly)
                 this.deleteMessage(this.state.chatcache[i].cid);
@@ -441,7 +432,7 @@ Plugged.prototype.removeChatByBody = function(messages, cacheOnly) {
     if(typeof messages.length <= 0)
         return;
 
-    for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
+    for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
         if(messages.length <= 0)
             break;
 
@@ -464,7 +455,7 @@ Plugged.prototype.removeChatByBody = function(messages, cacheOnly) {
 Plugged.prototype.removeChat = function(cid, cacheOnly) {
     cacheOnly = cacheOnly || false;
 
-    for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
+    for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
         if(this.state.chatcache[i].cid === cid) {
             if(!cacheOnly)
                 this.deleteMessage(this.state.chatcache[i].cid);
@@ -543,13 +534,13 @@ Plugged.prototype.checkForPreviousVote = function(vote) {
 
 // WebSocket action processor
 Plugged.prototype.wsaprocessor = function(self, msg) {
-    var data = JSON.parse(msg.substr(3, msg.length - 5));
+    var data = JSON.parse(msg)[0];
     
     switch(data.a) {
         case self.ACK:
             /*CONNECTED event is DEPRECATED! Will be removed with release 1.1.0*/
-            self.emit((data.p === 1 ? self.CONNECTED : self.CONN_ERROR), data.p);
-            self.emit((data.p === 1 ? self.CONN_SUCCESS : self.CONN_ERROR), data.p);
+            self.emit((data.p === "1" ? self.CONNECTED : self.CONN_ERROR), data.p);
+            self.emit((data.p === "1" ? self.CONN_SUCCESS : self.CONN_ERROR), data.p);
             break;
 
         case self.ADVANCE:
@@ -558,7 +549,6 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             self.state.room.booth.dj = data.p.c;
             self.state.room.booth.waitlist = data.p.d;
             self.state.self.vote = 0;
-            self.state.self.grab = 0;
             self.state.room.grabs = [];
             self.state.room.votes = [];
 
@@ -653,7 +643,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             break;
 
         case self.MOD_ADD_DJ:
-            self.emit(self.MOD_ADD_DJ, data.p);
+            self.emit(self.MOD_ADD_DJ, models.parseModAddDJ(data.p));
             break;
 
         case self.MOD_MUTE:
@@ -677,7 +667,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             if(self.state.self.id == promotion.id)
                 self.state.self.role = promotion.role;
 
-            for(var i = 0, l = self.state.room.users.length; i < l; i++) {
+            for(var i = self.state.room.users.length - 1; i >= 0; i--) {
                 if(self.state.room.users[i].id == promotion.id) {
                     self.state.room.users[i].role = promotion.role;
 
@@ -718,7 +708,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             var user = undefined;
             self.state.room.meta.population--;
 
-            for(var i = 0, l = self.state.room.users.length; i < l; i++) {
+            for(var i = self.state.room.users.length - 1; i >= 0; i--) {
                 if(self.state.room.users[i].id == data.p) {
                     self.clearUserFromLists(data.p);
                     user = self.state.room.users.splice(i, 1)[0];
@@ -737,6 +727,8 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             var user = models.parseUser(data.p)
             self.state.room.users.push(user);
             self.state.room.meta.population++;
+
+            self.removeCachedUserByID(user.id);
 
             if(self.isFriend(user.id))
                 self.emit(self.FRIEND_JOIN, user);
@@ -809,7 +801,7 @@ Plugged.prototype.keepAliveCheck = function() {
     this.keepAliveTries = 0;
 
     if(this.keepAliveID < 0)
-        this.keepAliveID = setInterval(this._keepAlive, 30*1000);
+        this.keepAliveID = setInterval(this._keepAlive.bind(this), 30*1000);
 };
 
 Plugged.prototype.sendChat = function(message, deleteTimeout) {
@@ -819,11 +811,7 @@ Plugged.prototype.sendChat = function(message, deleteTimeout) {
         message = message.toString();
 
     if(message.indexOf('"') >= 0)
-        message = message.replace(/"/g, "&#34;");
-
-    if(message.indexOf("'") >= 0)
-        message = message.replace(/'/g, "&#39;");
-
+        message = message.replace(/"/g, "'");
 
     if(message.length <= 255) {
         this.sock.sendMessage("chat", message, this.offset);
@@ -905,6 +893,10 @@ Plugged.prototype.connect = function(room, callback) {
             }.bind(this));
 
         } else {
+            if(err) {
+                this.emit(this.PLUG_ERROR, err.message);
+            }
+
             if(typeof callback === "function") {
                 console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
                 callback(err);
@@ -1259,11 +1251,17 @@ Plugged.prototype.addToWaitlist = function(userID, callback) {
 Plugged.prototype.grab = function(playlistID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
 
-    this.state.self.grab = 1;
+    for(var i = 0, l = self.state.room.grabs.length; i < l; i++) {
+        if(self.state.room.grabs[i] == self.state.self.id)
+            return -1;
+    }
+
     this.query.query("POST", endpoints["GRABS"], {
         playlistID: playlistID,
         historyID: this.state.room.playback.historyID
     }, callback, true);
+
+    return 0;
 };
 
 Plugged.prototype.skipDJ = function(userID, callback) {

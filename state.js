@@ -16,7 +16,6 @@ var parseSelf = function(data) {
         gRole: data.gRole || 0,
         badge: data.badge || 0,
         role: data.role || 0,
-        grab: data.grab || 0,
         vote: data.vote || 0,
         ep: data.ep || 0,
         xp: data.xp || 0,
@@ -30,6 +29,7 @@ var parseUser = function(data) {
     return {
         username: data.username || undefined,
         avatarID: data.avatarID || "base01",
+        language: data.language || "en",
         blurb: data.blurb || undefined,
         slug: data.slug || undefined,
         status: data.status || 0,
@@ -38,7 +38,6 @@ var parseUser = function(data) {
         gRole: data.gRole || 0,                 //global role
         badge: data.badge || 0,                 //long time users got a badge
         role: data.role || 0,
-        grab: data.grab || 0,                   //grabbed current song
         id: data.id || -1,
     };
 };
@@ -104,11 +103,22 @@ var parseGrabs = function(data) {
     return arr;
 };
 
+var parseModAddDJ = function(data) {
+    data = data || {};
+
+    return {
+        moderator: data.m || "",
+        moderatorID: data.mi || -1,
+        username: data.t || ""
+    };
+};
+
 var parseRemoveDJ = function(data) {
     data = data || {};
 
     return {
         moderator: data.m || "",
+        moderatorID: data.mi || -1,
         username: data.t || "",
         isCurrentlyPlaying: data.d || false
     };
@@ -119,6 +129,7 @@ var parseModMove = function(data) {
 
     return {
         moderator: data.m || "",
+        moderatorID: data.mi || -1,
         username: data.u || "",
         oldIndex: data.o || 0,
         newIndex: data.n || 0
@@ -186,6 +197,7 @@ var parseRoom = function(data) {
         meta: parseMeta(data.meta),
         mutes: parseMutes(data.mutes),
         playback: parsePlayback(data.playback),
+        minChatLevel: data.minChatLevel || 0,
         role: data.role || 0,
         users: data.users || [],
         votes: parseVotes(data.votes)
@@ -224,8 +236,8 @@ var parseModBan = function(data) {
 
     return {
         moderator: data.m || "",
+        moderatorID: data.mi || -1,
         username: data.t || "",
-        id: data.u || -1,
         duration: data.d || 'h'
     };
 };
@@ -235,7 +247,8 @@ var parseModRemove = function(data) {
 
     return {
         moderator: data.m || "",
-        username: data.u || -1,
+        moderatorID: data.mi || -1,
+        username: data.t || "",
         wasPlaying: data.d || false
     };
 };
@@ -255,7 +268,7 @@ var parseCycle = function(data) {
     return {
         shouldCycle: data.f || false,
         moderator: data.m || "",
-        id: data.u || -1
+        moderatorID: data.mi || -1
     };
 };
 
@@ -266,37 +279,20 @@ var parseLock = function(data) {
         clearWaitlist: data.c || false,
         isLocked: data.f || false,
         moderator: data.m || "",
-        id: data.u || -1
+        moderatorID: data.mi || -1
     };
 };
-
-/*var parsePromotion = function(data) {
-    data = data || {};
-    var obj = {
-        users: [],
-        moderator: data.m
-    };
-
-    for(var i = 0; i < data.u.length; i++) {
-        obj.users.push({
-            username: data.u[i].n,
-            id: data.u[i].i,
-            role: data.u[i].r
-        });
-    }
-
-    return obj;
-};*/
 
 var parsePromotion = function(data) {
     data = data || {};
 
     if(data.hasOwnProperty('u') && data.u.length === 1) {
         return {
-            moderator: data.m,
-            username: data.u[0].n,
-            id: data.u[0].i,
-            role: data.u[0].p
+            moderator: data.m || undefined,
+            moderatorID: data.mi || -1,
+            username: data.u[0].n || undefined,
+            id: data.u[0].i || -1,
+            role: data.u[0].p || 0
         };
     }
 
@@ -319,9 +315,8 @@ var parseChat = function(data) {
     return {
         message: data.message || "",
         username: data.un || "",
-        type: data.type || "message", //type of message (always "message")
         id: data.uid || -1,          //user ID
-        cid: data.cid || -1           //chat ID
+        cid: data.cid || -1          //chat ID
     };
 };
 
@@ -329,8 +324,8 @@ var parseChatDelete = function(data) {
     data = data || {};
 
     return {
-        id: data.u,        //ID of mod that issued the deletion
-        cid: data.c         //chat ID
+        moderatorID: data.mi || -1,      //ID of mod that issued the deletion
+        cid: data.c || 0         //chat ID
     };
 };
 
@@ -351,7 +346,7 @@ var parseRoomNameUpdate = function(data) {
 
     return {
         name: data.n || "",
-        id: data.u || -1
+        moderatorID: data.u || -1
     };
 };
 
@@ -360,7 +355,7 @@ var parseRoomDescriptionUpdate = function(data) {
 
     return {
         description: data.d || "",
-        id: data.u || -1
+        moderatorID: data.u || -1
     };
 };
 
@@ -369,7 +364,7 @@ var parseRoomWelcomeUpdate = function(data) {
 
     return {
         name: data.w || "",
-        id: data.u || -1
+        moderatorID: data.u || -1
     };
 };
 
@@ -392,6 +387,7 @@ exports.parseBooth = parseBooth;
 exports.parseModBan = parseModBan;
 exports.createState = createState;
 exports.parseModMove = parseModMove;
+exports.parseModAddDJ = parseModAddDJ;
 exports.parseRemoveDJ = parseRemoveDJ;
 exports.parsePlayback = parsePlayback;
 exports.parsePromotion = parsePromotion;
