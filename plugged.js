@@ -317,13 +317,6 @@ Plugged.prototype.connectSocket = function() {
         return "sock is already open!";
 
     var self = this;
-    var sid = Math.floor(Math.random() * 1000);
-    var id = "xxxxxxxx".replace(/x/g, function _rep() {
-        return "abcdefghijklmnopqrstuvwxyz0123456789_".charAt(Math.floor(Math.random() * 37));
-    });
-
-    this.log("Server: " + sid, 3, "yellow");
-    this.log("ID: " + id, 3, "yellow");
 
     this.sock = new WebSocket("wss://godj.plug.dj:443/socket");
 
