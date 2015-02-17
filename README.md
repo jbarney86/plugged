@@ -2,6 +2,12 @@ plugged
 ==========
 plugged is a (v|f)ast JavaScript API for the plug.dj service.
 
+INFORMATION
+==========
+plugged 1.0.9 is using the new socket server but plug reverted it back to the old one. Please use plugged 1.0.8 until the new server is fully functional!
+
+`npm install plugged@1.0.8`
+
 Installation
 ==========
 `npm install plugged`
