@@ -79,20 +79,6 @@ function setErrorMessage(statusCode, msg) {
     };
 }
 
-/*function delMsg(msg, count) {
-    count = count || 0;
-
-    for(var i = this.state.chatcache.length - 1; 0 <= i; i--) {
-        if(this.state.chatcache[i].message === msg) {
-            for(var j = count; 0 <= j; j--) {
-                this.deleteMessage(this.state.chatcache[i + j].cid);
-                this.removeChat(this.state.chatcache[i + j].cid);
-            }
-            break;
-        }               
-    }
-}*/
-
 function loginClient(client, tries) {
     async.waterfall([
         client.getCSRF.bind(client),
@@ -105,7 +91,7 @@ function loginClient(client, tries) {
                 if(!err)
                     client.emit(client.LOGIN_SUCCESS);
                 else
-                    client.emit(client.LOGIN_ERROR);
+                    client.emit(client.LOGIN_ERROR, err);
             });
 
         } else {
@@ -200,8 +186,6 @@ Plugged.prototype.CONN_PART = "connPart";
 Plugged.prototype.CONN_ERROR = "connError";
 Plugged.prototype.CONN_WARNING = "connWarning";
 Plugged.prototype.CONN_SUCCESS = "connSuccess";
-/* DEPRECATED! will be removed with release 1.1.0 */
-Plugged.prototype.CONNECTED = "connected";
 
 /* CORE SOCKET EVENTS */
 Plugged.prototype.SOCK_OPEN = "sockOpen";
@@ -317,7 +301,6 @@ Plugged.prototype.connectSocket = function() {
         return "sock is already open!";
 
     var self = this;
-
     this.sock = new WebSocket("wss://godj.plug.dj:443/socket");
 
     /*================= SOCK OPENED =================*/
@@ -351,11 +334,6 @@ Plugged.prototype.connectSocket = function() {
         else
             self.wsaprocessor(self, msg);
     });
-};
-
-Plugged.prototype.disconnect = function() {
-    console.err("disconnect FUNCTION DEPRECATED! will be removed with release 1.1.0");
-    this.logout();
 };
 
 Plugged.prototype.clearMutes = function() {
@@ -414,6 +392,7 @@ Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
     } 
 };
 
+/*TODO: experimental*/
 Plugged.prototype.removeChatByBody = function(messages, cacheOnly) {
     cacheOnly = cacheOnly || false;
 
@@ -531,8 +510,6 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
     
     switch(data.a) {
         case self.ACK:
-            /*CONNECTED event is DEPRECATED! Will be removed with release 1.1.0*/
-            self.emit((data.p === "1" ? self.CONNECTED : self.CONN_ERROR), data.p);
             self.emit((data.p === "1" ? self.CONN_SUCCESS : self.CONN_ERROR), data.p);
             break;
 
@@ -853,7 +830,7 @@ Plugged.prototype.login = function(credentials) {
     loginClient(this, 0);
 };
 
-Plugged.prototype.connect = function(room, callback) {
+Plugged.prototype.connect = function(room) {
     if(!room)
         throw new Error("room has to be defined");
 
@@ -866,34 +843,14 @@ Plugged.prototype.connect = function(room, callback) {
 
             this.getRoomStats(function(err, stats) {
 
-                if(!err) {
+                if(!err)
                     this.state.room = models.parseRoom(stats);
-                    this.emit(this.JOINED_ROOM);
 
-                    if(typeof callback === "function") {
-                        console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
-                        callback(null, this.state);
-                    }
-                } else {
-                    callback(err);
-                    this.emit(this.JOINED_ROOM, err);
-
-                    if(typeof callback === "function") {
-                        console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
-                        callback(null, this.state);
-                    }
-                }
+                this.emit(this.JOINED_ROOM, err);
             }.bind(this));
 
         } else {
-            if(err) {
-                this.emit(this.PLUG_ERROR, err.message);
-            }
-
-            if(typeof callback === "function") {
-                console.error("callback is deprecated! Will be removed with version 1.1.0. Use JOINED_ROOM instead.")
-                callback(err);
-            }
+            this.emit(this.PLUG_ERROR, err.message);
         }
     }.bind(this));
 };
@@ -1407,9 +1364,7 @@ Plugged.prototype.deleteMessage = function(chatID, callback) {
     this.query.query("DELETE", endpoints["CHAT"] + chatID, callback);
 };
 
-Plugged.prototype.logout = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-
+Plugged.prototype.logout = function() {
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
             this.watchUserCache(false);
@@ -1431,18 +1386,8 @@ Plugged.prototype.logout = function(callback) {
             this.keepAliveID = -1;
 
             this.emit(this.LOGOUT_SUCCESS);
-
-            if(typeof callback === "function") {
-                console.error("logout argument 'callback' will be removed with version 1.1.0, please use the LOGOUT_SUCCES; LOGOUT_ERROR events");
-                callback();
-            }
         } else {
             this.emit(this.LOGOUT_ERROR, err);
-
-            if(typeof callback === "function") {
-                console.error("logout argument 'callback' will be removed with version 1.1.0, please use the LOGOUT_SUCCES; LOGOUT_ERROR events");
-                callback(err);
-            }
         }
     }.bind(this));
 };
