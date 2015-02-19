@@ -834,25 +834,27 @@ Plugged.prototype.connect = function(room) {
     if(!room)
         throw new Error("room has to be defined");
 
+    var self = this;
+
     this.joinRoom(room, function _joinedRoom(err) {
         if(!err) {
-            this.watchUserCache(true);
-            this.clearUserCache();
-            this.clearChatCache();
-            this.clearMutes();
+            self.watchUserCache(true);
+            self.clearUserCache();
+            self.clearChatCache();
+            self.clearMutes();
 
-            this.getRoomStats(function(err, stats) {
+            self.getRoomStats(function(err, stats) {
 
                 if(!err)
-                    this.state.room = models.parseRoom(stats);
+                    self.state.room = models.parseRoom(stats);
 
-                this.emit(this.JOINED_ROOM, err);
-            }.bind(this));
+                self.emit(self.JOINED_ROOM, err);
+            });
 
         } else {
-            this.emit(this.PLUG_ERROR, err.message);
+            self.emit(self.PLUG_ERROR, err.message);
         }
-    }.bind(this));
+    });
 };
 
 /*================ ROOM CALLS ================*/
@@ -1092,6 +1094,9 @@ Plugged.prototype.getStaffOnlineByRole = function(role) {
 };
 
 Plugged.prototype.getStaffByRole = function(role, callback) {
+    if(typeof callback !== "function")
+        return;
+
     var self = this;
 
     this.getStaff(function(err, staff) {
@@ -1125,9 +1130,18 @@ Plugged.prototype.getRoomStats = function(callback) {
     this.query.query("GET", endpoints["ROOMSTATS"], callback, true);
 };
 
-Plugged.prototype.findRooms = function(name, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", [endpoints["ROOMS"], "?q=", name, "&page=0&limit=100"].join(''), callback);
+Plugged.prototype.findRooms = function(name, limit, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : 
+        typeof page === "function" ? page : 
+        typeof limit === "function" ? limit : undefined);
+
+    if(typeof page !== "Number")
+        page = 0;
+
+    if(typeof limit !== "Number")
+        limit = 100;
+
+    this.query.query("GET", [endpoints["ROOMS"], "?q=", name, "&page=", page, "&limit=", limit].join(''), callback);
 };
 
 Plugged.prototype.getRooms = function(callback) {
@@ -1396,22 +1410,23 @@ Plugged.prototype.logout = function() {
 
 Plugged.prototype.requestSelf = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function () {});
+    var self = this;
     this.query.query("GET", endpoints["USERSTATS"] + "me", function _requestedSelf(err, data) {
         if(!err && data) {
-            this.state.self = models.parseSelf(data);
+            self.state.self = models.parseSelf(data);
 
-            this.getFriends(function(err, data) {
+            self.getFriends(function(err, data) {
                 if(!err && data) {
                     for(var i = 0, l = data.length; i < l; i++)
-                        this.state.self.friends.push(data[i].id);
+                        self.state.self.friends.push(data[i].id);
                 }
 
                 callback(err, data);
-            }.bind(this));
+            };
         } else {
             callback(err);
         }
-    }.bind(this), true);
+    }, true);
 };
 
 Plugged.prototype.getMyHistory = function(callback) {
