@@ -527,7 +527,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             self.state.room.playback.playlistID = data.p.p;
             self.state.room.playback.startTime = data.p.t;
 
-            self.emit(self.ADVANCE, self.state.room.booth, self.state.room.playback, self.previous);
+            self.emit(self.ADVANCE, self.state.room.booth, self.state.room.playback, previous);
             break;
 
         case self.CHAT:
@@ -1422,7 +1422,7 @@ Plugged.prototype.requestSelf = function(callback) {
                 }
 
                 callback(err, data);
-            };
+            });
         } else {
             callback(err);
         }
