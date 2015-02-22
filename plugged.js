@@ -626,7 +626,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
             if(mute.duration === self.MUTEDURATION.NONE)
                 self.clearMute(mute.id);
             else
-                self.state.room.mutes.push({id: mute.id, time: mute.duration, interval: setTimeout(self._muteExpired, time, mute) });
+                self.state.room.mutes.push({id: mute.id, time: mute.duration, interval: setTimeout(self._muteExpired.bind(self), time, mute) });
         
             self.emit(self.MOD_MUTE, mute);
             break;
