@@ -27,19 +27,23 @@ var endpoints = {
     PLAYLISTS: baseURL +    "/_/playlists",
     PURCHASES: baseURL +    "/_/users/me/purchase",
     USERHISTORY: baseURL +  "/_/users/me/history",
+    TRANSACTIONS: baseURL + "/_/users/me/transactions", // TODO: new endpoint
     FAVORITEROOM: baseURL + "/_/rooms/favorites",
+    VALIDATEUSER: baseURL + "/_/users/validate/",       // TODO: new endpoint
     VALIDATEROOM: baseURL + "/_/rooms/validate/",
     /*--------------- PUT ---------------*/
     LOCK: baseURL +         "/_/booth/lock",
     BLURB: baseURL +        "/_/profile/blurb",
     CYCLE: baseURL +        "/_/booth/cycle",
-    LOGIN: baseURL +        "/_/auth/login", 
+    LOGIN: baseURL +        "/_/auth/login",
     BADGE: baseURL +        "/_/users/badge",
     AVATAR: baseURL +       "/_/users/avatar",
     STATUS: baseURL +       "/_/users/status",
+    SETTINGS: baseURL +     "/_/users/settings",    // TODO: new endpoint
     LANGUAGE: baseURL +     "/_/users/language",
     IGNOREFRIEND: baseURL + "/_/friends/ignore",
     /*--------------- POST --------------*/
+    GIFT: baseURL +         "/_/gift",              // TODO: new endpoint
     GRABS: baseURL +        "/_/grabs",
     VOTES: baseURL +        "/_/votes",
     RESET: baseURL +        "/_/auth/reset/me",
@@ -1327,11 +1331,13 @@ Plugged.prototype.ignoreUser = function(userID, callback) {
     }.bind(this), true);
 };
 
+//DELETE plug.dj/_/playlists/<id>
 Plugged.prototype.deletePlaylist = function(playlistID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
     this.query.query("DELETE", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
 };
 
+//DELETE plug.dj/_/ignores/<id>/
 Plugged.prototype.removeIgnore = function(userID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
     this.query.query("DELETE", endpoints["IGNORES"] + '/' + userID, function(err, data) {
@@ -1523,6 +1529,7 @@ Plugged.prototype.getCSRF = function(callback) {
     }.bind(this));
 };
 
+//PUT plug.dj/_/blurb
 Plugged.prototype.setProfileMessage = function(message, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
     this.query.query("PUT", endpoints["BLURB"], { blurb: message }, function(err) {
@@ -1533,6 +1540,13 @@ Plugged.prototype.setProfileMessage = function(message, callback) {
     }.bind(this), true);
 };
 
+//PUT plug.dj/_/playlists/<id>/rename
+Plugged.prototype.renamePlaylist = function(playlistID, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
+    this.query.query("PUT", [endpoints["PLAYLISTS"], '/', playlistID, '/rename'].join(''), callback);
+};
+
+//PUT plug.dj/_/avatar
 Plugged.prototype.setAvatar = function(avatarID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
     this.query.query("PUT", endpoints["AVATAR"], { id: avatarID }, function(err) {
@@ -1543,6 +1557,7 @@ Plugged.prototype.setAvatar = function(avatarID, callback) {
     }.bind(this), true);
 };
 
+//PUT plug.dj/_/status
 Plugged.prototype.setStatus = function(status, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
     this.query.query("PUT", endpoints["STATUS"], { status: status }, function(err) {
@@ -1553,6 +1568,7 @@ Plugged.prototype.setStatus = function(status, callback) {
     }.bind(this));
 };
 
+//PUT plug.dj/_/language
 Plugged.prototype.setLanguage = function(language, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("PUT", endpoints["LANGUAGE"], { language: language }, callback);
@@ -1667,6 +1683,12 @@ Plugged.prototype.getInventory = function(callback) {
 Plugged.prototype.getProducts = function(category, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["PRODUCTS"] + "/avatars/" + category, callback);
+};
+
+// TODO: further investigate what this endpoint does
+Plugged.prototype.purchaseByUsername = function(itemID, username, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("POST", endpoints["PURCHASE"] + "/username", { id: itemID, username: username }, callback);
 };
 
 Plugged.prototype.purchaseItem = function(itemID, callback) {
