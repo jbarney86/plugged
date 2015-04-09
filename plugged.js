@@ -393,9 +393,10 @@ Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
 
 Plugged.prototype.removeChatMessagesByUser = function(username, cacheOnly) {
     cacheOnly = cacheOnly || false;
+    username = username.toLowerCase();
 
     for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
-        if(this.state.chatcache[i].username === username) {
+        if(this.state.chatcache[i].username.toLowerCase() === username) {
             if(!cacheOnly)
                 this.deleteMessage(this.state.chatcache[i].cid);
 
