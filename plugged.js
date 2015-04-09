@@ -282,8 +282,8 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
 
             time = Date.parse(time);
 
-            // a valid token is always 128 characters in length
-            if(!isNaN(time)) {
+            // a valid token is always 152 characters in length
+            if(token.length == 152 && !isNaN(time)) {
                 this.log("auth token: " + token, 2, "yellow");
                 this.log("time: " + time, 2, "yellow");
                 this.offset = Date.now() - time;
