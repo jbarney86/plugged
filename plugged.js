@@ -90,7 +90,7 @@ function loginClient(client, tries) {
         client.getAuthAndServerTime.bind(client)
     ], function _loggedIn(err) {
         if(!err) {
-            client.connectSocket();
+            client._connectSocket();
             client.requestSelf(function _requestSelfLogin(err) {
                 if(!err)
                     client.emit(client.LOGIN_SUCCESS);
@@ -265,6 +265,13 @@ Plugged.prototype._muteExpired = function(mute) {
     }
 };
 
+Plugged.prototype._cleanUserCache = function() {
+    for(var i = this.state.usercache.length - 1; i >= 0; i--) {
+        if(Date.now() - this.state.usercache[i].timestamp > 5*60*1000)
+            this.state.usercache.splice(i, 1);
+    }
+};
+
 Plugged.prototype.getAuthAndServerTime = function(data, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
 
@@ -301,7 +308,7 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
 };
 
 /*================== WebSocket ==================*/
-Plugged.prototype.connectSocket = function() {
+Plugged.prototype._connectSocket = function() {
     if(this.sock)
         return "sock is already open!";
 
@@ -362,18 +369,12 @@ Plugged.prototype.clearUserCache = function() {
     this.state.usercache = [];
 };
 
-Plugged.prototype.cleanUserCache = function() {
-    for(var i = this.state.usercache.length - 1; i >= 0; i--) {
-        if(Date.now() - this.state.usercache[i].timestamp > 5*60*1000)
-            this.state.usercache.splice(i, 1);
-    }
-};
-
 Plugged.prototype.getChatByUser = function(username) {
     var messages = [];
+    username = username.toLowerCase();
 
     for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
-        if(this.state.chatcache[i].username === username)
+        if(this.state.chatcache[i].username.toLowerCase() === username)
             messages.push(this.state.chatcache[i]);
     }
 
@@ -395,38 +396,6 @@ Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
             this.state.chatcache.splice(i, 1);
         }
     } 
-};
-
-/*TODO: experimental*/
-Plugged.prototype.removeChatByBody = function(messages, cacheOnly) {
-    cacheOnly = cacheOnly || false;
-
-    //wrap it into an array so we can streamline the code instead of branching it and
-    //creating needless redundancy
-    if(!Array.isArray(messages))
-        messages = [messages];
-
-    if(typeof messages.length <= 0)
-        return;
-
-    for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
-        if(messages.length <= 0)
-            break;
-
-        for(var l = messages.length - 1; 0 <= l; l--) {
-            if(typeof messages[l] === "string" && typeof this.state.chatcache[i] !== "undefined" &&
-                this.state.self.username === this.state.chatcache[i].username &&
-                this.state.chatcache[i].message === messages[l]) {
-                
-                if(!cacheOnly)
-                    this.deleteMessage(this.state.chatcache[i].cid);
-
-                this.state.chatcache.splice(i, 1);
-                messages.splice(l, 1);
-                break;
-            }
-        }
-    }
 };
 
 Plugged.prototype.removeChat = function(cid, cacheOnly) {
@@ -456,10 +425,12 @@ Plugged.prototype.flushQuery = function() {
 Plugged.prototype.watchUserCache = function(enabled) {
     clearInterval(this.cleanCacheInterval);
 
-    if(enabled)
-        this.cleanCacheInterval = setInterval(this.cleanUserCache.bind(this), 5*60*1000);
-    else
+    if(enabled) {
+        this.cleanCacheInterval = setInterval(this._cleanUserCache.bind(this), 5*60*1000);
+    } else {
         this.cleanCacheInterval = -1;
+        this.clearUserCache();
+    }
 };
 
 Plugged.prototype.cacheChat = function(enabled) {
