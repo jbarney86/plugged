@@ -2,11 +2,11 @@ var parseSelf = function(data) {
     data = data || {};
 
     return {
-        username: data.username || undefined,
+        username: data.username || "",
         avatarID: data.avatarID || "default01",
         language: data.language || "en",
-        blurb: data.blurb || undefined,
-        slug: data.slug || undefined,
+        blurb: data.blurb || "",
+        slug: data.slug || "",
         notifications: data.notification || [],
         ignores: data.ignores || [],
         friends: data.friends || [],
@@ -27,11 +27,11 @@ var parseUser = function(data) {
     data = data || {};
 
     return {
-        username: data.username || undefined,
+        username: data.username || "",
         avatarID: data.avatarID || "base01",
         language: data.language || "en",
-        blurb: data.blurb || undefined,
-        slug: data.slug || undefined,
+        blurb: data.blurb || "",
+        slug: data.slug || "",
         status: data.status || 0,
         joined: data.joined || 0,
         level: data.level || 0,
