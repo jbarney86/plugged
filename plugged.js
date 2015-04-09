@@ -385,7 +385,13 @@ Plugged.prototype.getChat = function() {
     return this.state.chatcache;
 };
 
+//TODO: remove this function after release of 1.1.0
 Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
+    console.log("removeChatByUser is deprecated by 1.1.0, please use removeChatMessagesByUser");
+    this.removeChatMessagesByUser(username, cacheOnly);
+};
+
+Plugged.prototype.removeChatMessagesByUser = function(username, cacheOnly) {
     cacheOnly = cacheOnly || false;
 
     for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
@@ -398,7 +404,13 @@ Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
     } 
 };
 
+//TODO: remove this function after release of 1.1.0
 Plugged.prototype.removeChat = function(cid, cacheOnly) {
+    console.log("removeChat is deprecated by 1.1.0, please use removeChatMessage");
+    this.removeChatMessage(cid, cacheOnly);
+};
+
+Plugged.prototype.removeChatMessage = function(cid, cacheOnly) {
     cacheOnly = cacheOnly || false;
 
     for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
@@ -414,10 +426,6 @@ Plugged.prototype.removeChat = function(cid, cacheOnly) {
 
 Plugged.prototype.clearChatCache = function() {
     this.state.chatcache = [];
-};
-
-Plugged.prototype.flushQuery = function() {
-    this.query.flushQueue();
 };
 
 // keeps the usercache clean by deleting invalidate objects
@@ -1363,7 +1371,7 @@ Plugged.prototype.logout = function() {
             this.clearMutes();
             this.clearUserCache();
             this.clearChatCache();
-            this.flushQuery();
+            this.query.flushQuery();
             clearTimeout(this.keepAliveID);
 
             this.sock.close();
