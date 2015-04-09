@@ -447,7 +447,7 @@ Plugged.prototype.cacheChat = function(enabled) {
 };
 
 Plugged.prototype.setChatCacheSize = function(size) {
-    if(typeof size === "number")
+    if(typeof size === "number" && size >= 0)
         return this.chatcachesize = size;
     else
         return this.chatcachesize;
