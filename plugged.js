@@ -272,6 +272,22 @@ Plugged.prototype._cleanUserCache = function() {
     }
 };
 
+Plugged.prototype._checkForPreviousVote = function(vote) {
+    for(var i = 0, l = this.state.room.votes.length; i < l; i++) {
+        if(this.state.room.votes[i].id == vote.id) {
+            //only return true if vote direction hasn't changed
+            if(this.state.room.votes[i].direction !== vote.direction) {
+                this.state.room.votes[i].direction = vote.direction;
+                return false;
+            } else {
+                return true;
+            }
+        }
+    }
+    this.state.room.votes.push(vote);
+    return false;
+};
+
 Plugged.prototype.getAuthAndServerTime = function(data, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
 
@@ -320,7 +336,7 @@ Plugged.prototype._connectSocket = function() {
         self.log("socket opened", 3, "magenta");
         self.emit(self.SOCK_OPEN, self);
         this.sendMessage("auth", self.auth, self.offset);
-        self.keepAliveCheck.call(self);
+        self._keepAliveCheck.call(self);
     });
 
     /*================= SOCK CLOSED =================*/
@@ -342,9 +358,9 @@ Plugged.prototype._connectSocket = function() {
             return;
 
         if(msg.charAt(0) === 'h')
-            self.keepAliveCheck.call(self);
+            self._keepAliveCheck.call(self);
         else
-            self.wsaprocessor(self, msg);
+            self._wsaprocessor(self, msg);
     });
 };
 
@@ -437,6 +453,7 @@ Plugged.prototype.watchUserCache = function(enabled) {
     if(enabled) {
         this.cleanCacheInterval = setInterval(this._cleanUserCache.bind(this), 5*60*1000);
     } else {
+        this.cacheUserOnLeave(false);
         this.cleanCacheInterval = -1;
         this.clearUserCache();
     }
@@ -454,43 +471,28 @@ Plugged.prototype.setChatCacheSize = function(size) {
 };
 
 Plugged.prototype.cacheUserOnLeave = function(enabled) {
-    this.sleave = enabled;
+    if(this.cleanCacheInterval >= 0 && enabled)
+        this.sleave = enabled;
 };
 
 Plugged.prototype.clearUserFromLists = function(id) {
     for(var i = 0, l = this.state.room.votes; i < l; i++) {
-        if(this.state.room.votes[i].id === id) {
+        if(this.state.room.votes[i].id == id) {
             this.state.room.votes.splice(i, 1);
             break;
         }
     }
 
     for(var i = 0, l = this.state.room.grabs; i < l; i++) {
-        if(this.state.room.grabs[i] === id) {
+        if(this.state.room.grabs[i] == id) {
             this.state.room.grabs.splice(i, 1);
             break;
         }
     }
 };
 
-Plugged.prototype.checkForPreviousVote = function(vote) {
-    for(var i = 0, l = this.state.room.votes.length; i < l; i++) {
-        if(this.state.room.votes[i].id == vote.id) {
-            //only return true if vote direction hasn't changed
-            if(this.state.room.votes[i].direction !== vote.direction) {
-                this.state.room.votes[i].direction = vote.direction;
-                return false;
-            } else {
-                return true;
-            }
-        }
-    }
-    this.state.room.votes.push(vote);
-    return false;
-};
-
 // WebSocket action processor
-Plugged.prototype.wsaprocessor = function(self, msg) {
+Plugged.prototype._wsaprocessor = function(self, msg) {
     var data = JSON.parse(msg)[0];
     
     switch(data.a) {
@@ -702,7 +704,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
 
         case self.VOTE:
             var vote = models.pushVote(data.p);
-            if(!self.checkForPreviousVote(vote))
+            if(!self._checkForPreviousVote(vote))
                 self.emit(self.VOTE, vote);
             break;
 
@@ -752,7 +754,7 @@ Plugged.prototype.wsaprocessor = function(self, msg) {
     }
 };
 
-Plugged.prototype.keepAliveCheck = function() {
+Plugged.prototype._keepAliveCheck = function() {
     this.keepAliveTries = 0;
 
     if(this.keepAliveID < 0)
@@ -833,7 +835,7 @@ Plugged.prototype.connect = function(room) {
                 if(!err)
                     self.state.room = models.parseRoom(stats);
 
-                self.emit(self.JOINED_ROOM, err);
+                self.emit(self.JOINED_ROOM, (!err ? self.state.stats : err));
             });
 
         } else {
