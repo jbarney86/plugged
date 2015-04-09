@@ -3,7 +3,7 @@ var parseSelf = function(data) {
 
     return {
         username: data.username || "",
-        avatarID: data.avatarID || "default01",
+        avatarID: data.avatarID || "base01",
         language: data.language || "en",
         blurb: data.blurb || "",
         slug: data.slug || "",
@@ -38,7 +38,8 @@ var parseUser = function(data) {
         gRole: data.gRole || 0,                 //global role
         badge: data.badge || 0,                 //long time users got a badge
         role: data.role || 0,
-        id: data.id || -1,
+        sub: data.sub || 0,
+        id: data.id || -1
     };
 };
 
