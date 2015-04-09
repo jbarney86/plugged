@@ -231,6 +231,7 @@ Plugged.prototype.CHAT_COMMAND = "chatCommand";
 Plugged.prototype.CHAT_RATE_LIMIT = "rateLimit";
 Plugged.prototype.DJ_LIST_CYCLE = "djListCycle";
 Plugged.prototype.MOD_REMOVE_DJ = "modRemoveDJ";
+Plugged.prototype.FRIEND_ACCEPT = "friendAccept";
 Plugged.prototype.DJ_LIST_LOCKED = "djListLocked";
 Plugged.prototype.PLAYLIST_CYCLE = "playlistCycle";
 Plugged.prototype.FRIEND_REQUEST = "friendRequest";
@@ -282,7 +283,7 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
             time = Date.parse(time);
 
             // a valid token is always 128 characters in length
-            if(token.length == 128 && !isNaN(time)) {
+            if(!isNaN(time)) {
                 this.log("auth token: " + token, 2, "yellow");
                 this.log("time: " + time, 2, "yellow");
                 this.offset = Date.now() - time;
