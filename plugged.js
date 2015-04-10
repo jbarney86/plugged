@@ -1126,14 +1126,14 @@ Plugged.prototype.findRooms = function(name, limit, callback) {
         page = 0;
 
     if(typeof limit !== "Number")
-        limit = 100;
+        limit = 50;
 
     this.query.query("GET", [endpoints["ROOMS"], "?q=", name, "&page=", page, "&limit=", limit].join(''), callback);
 };
 
 Plugged.prototype.getRooms = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["ROOMS"] + "?q=&page=0&limit=100", callback);
+    this.query.query("GET", endpoints["ROOMS"] + "?q=&page=0&limit=50", callback);
 };
 
 Plugged.prototype.getStaff = function(callback) {
