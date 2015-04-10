@@ -165,7 +165,7 @@ var parseExtendedRoom = function(data) {
 
     return {
         cid: data.cid || "",
-        dj: (data.dj ? parseUser(data.dj) : null),
+        dj: data.dj,
         favorite: data.favorite || false,
         format: data.format || 1,
         host: data.host || "",
