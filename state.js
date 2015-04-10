@@ -48,10 +48,11 @@ var parseUserUpdate = function(data) {
     data = data || {};
 
     return {
-        id: data.i || -1,
+        id: data.i || undefined,
         level: data.level || undefined,
         status: data.status || undefined,
-        avatarID: data.avatarID || undefined
+        avatarID: data.avatarID || undefined,
+        username: data.username || undefined
     };
 };
 
@@ -115,17 +116,6 @@ var parseModAddDJ = function(data) {
     };
 };
 
-var parseRemoveDJ = function(data) {
-    data = data || {};
-
-    return {
-        moderator: data.m || "",
-        moderatorID: data.mi || -1,
-        username: data.t || "",
-        isCurrentlyPlaying: data.d || false
-    };
-};
-
 var parseModMove = function(data) {
     data = data || {};
 
@@ -185,7 +175,7 @@ var parseExtendedRoom = function(data) {
         name: data.name || "",
         population: data.population || 0,
         private: data.private || false,
-        slug: data.slug || undefined
+        slug: data.slug || ""
     };
 };
 
@@ -290,9 +280,9 @@ var parsePromotion = function(data) {
 
     if(data.hasOwnProperty('u') && data.u.length === 1) {
         return {
-            moderator: data.m || undefined,
+            moderator: data.m || "",
             moderatorID: data.mi || -1,
-            username: data.u[0].n || undefined,
+            username: data.u[0].n || "",
             id: data.u[0].i || -1,
             role: data.u[0].p || 0
         };
@@ -317,8 +307,9 @@ var parseChat = function(data) {
     return {
         message: data.message || "",
         username: data.un || "",
-        id: data.uid || -1,          //user ID
-        cid: data.cid || -1          //chat ID
+        id: data.uid || -1,         //user ID
+        cid: data.cid || -1,        //chat ID
+        sub: data.sub || 0          //subscription identification
     };
 };
 
@@ -326,8 +317,8 @@ var parseChatDelete = function(data) {
     data = data || {};
 
     return {
-        moderatorID: data.mi || -1,      //ID of mod that issued the deletion
-        cid: data.c || 0         //chat ID
+        moderatorID: data.mi || -1,     //ID of mod that issued the deletion
+        cid: data.c || -1               //chat ID
     };
 };
 
@@ -365,7 +356,7 @@ var parseRoomWelcomeUpdate = function(data) {
     data = data || {};
 
     return {
-        name: data.w || "",
+        welcome: data.w || "",
         moderatorID: data.u || -1
     };
 };
@@ -390,7 +381,6 @@ exports.parseModBan = parseModBan;
 exports.createState = createState;
 exports.parseModMove = parseModMove;
 exports.parseModAddDJ = parseModAddDJ;
-exports.parseRemoveDJ = parseRemoveDJ;
 exports.parsePlayback = parsePlayback;
 exports.parsePromotion = parsePromotion;
 exports.parseModRemove = parseModRemove;
