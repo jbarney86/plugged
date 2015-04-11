@@ -685,8 +685,6 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             self.state.room.users.push(user);
             self.state.room.meta.population++;
 
-            self.removeCachedUserByID(user.id);
-
             if(self.isFriend(user.id))
                 self.emit(self.FRIEND_JOIN, user);
             else
@@ -744,8 +742,9 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             self.emit(self.BAN, models.parseBan(data.p));
             break;
 
+        //TODO: find out if the new username is returned only
         case self.NAME_CHANGED:
-            self.emit(self.NAME_CHANGED);
+            self.emit(self.NAME_CHANGED, data.p);
             break;
 
         default:
@@ -834,7 +833,7 @@ Plugged.prototype.connect = function(room) {
 
                 if(!err) {
                     self.state.room = models.parseRoom(stats);
-                    self.emit(self.JOINED_ROOM, self.state.stats);
+                    self.emit(self.JOINED_ROOM, self.state.room);
                 } else {
                     self.emit(self.PLUG_ERROR, err.message);
                 }
