@@ -832,10 +832,12 @@ Plugged.prototype.connect = function(room) {
 
             self.getRoomStats(function(err, stats) {
 
-                if(!err)
+                if(!err) {
                     self.state.room = models.parseRoom(stats);
-
-                self.emit(self.JOINED_ROOM, (!err ? self.state.stats : err));
+                    self.emit(self.JOINED_ROOM, self.state.stats);
+                } else {
+                    self.emit(self.PLUG_ERROR, err.message);
+                }
             });
 
         } else {
