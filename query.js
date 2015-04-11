@@ -16,6 +16,8 @@ function processEntry(query, entry) {
                 // extract unnecessary array
                 if(entry.extractArray && body.length === 1)
                     body = body[0];
+                else if(entry.extractArray && body.length === 0)
+                    body = null;
 
                 entry.options = {};
                 entry.callback(null, body);
