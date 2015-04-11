@@ -48,7 +48,7 @@ var parseUserUpdate = function(data) {
     data = data || {};
 
     return {
-        id: data.i || undefined,
+        id: data.i || -1,
         level: data.level || undefined,
         status: data.status || undefined,
         avatarID: data.avatarID || undefined,
