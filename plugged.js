@@ -71,7 +71,7 @@ WebSocket.prototype.sendMessage = function(type, data, offset) {
     if(typeof type === "string" && (typeof data === "string" || typeof data === "number")) {
         this.send([
             '{"a":"', type, '","p":"', data, 
-            '","t":', Date.now() - offset, '}'
+            '","t":', Date.now(), '}'
             ].join(''));
     }
 };
@@ -303,7 +303,7 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
             idx = body.indexOf("_st=\"") + 5;
             time = body.substr(idx, body.indexOf("\"", idx) - idx);
 
-            time = Date.parse(time);
+            time = Date.parse(time + " UTC");
 
             // a valid token is always 152 characters in length
             if(token.length == 152 && !isNaN(time)) {
@@ -668,7 +668,7 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             for(var i = self.state.room.users.length - 1; i >= 0; i--) {
                 if(self.state.room.users[i].id == data.p) {
                     self.clearUserFromLists(data.p);
-                    user = self.state.room.users.splice(i, 1)[0];
+                    user = self.state.room.users.splice(i, 1);
 
                     if(self.sleave)
                         self.cacheUser(user);
@@ -1110,7 +1110,7 @@ Plugged.prototype.getNews = function(callback) {
 
 Plugged.prototype.getAuthToken = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["TOKEN"], callback);
+    this.query.query("GET", endpoints["TOKEN"], callback, true);
 };
 
 Plugged.prototype.getRoomStats = function(callback) {
@@ -1118,15 +1118,16 @@ Plugged.prototype.getRoomStats = function(callback) {
     this.query.query("GET", endpoints["ROOMSTATS"], callback, true);
 };
 
-Plugged.prototype.findRooms = function(name, limit, callback) {
+Plugged.prototype.findRooms = function(name, page, limit, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : 
         typeof page === "function" ? page : 
         typeof limit === "function" ? limit : undefined);
+    name = name || "";
 
-    if(typeof page !== "Number")
+    if(typeof page !== "number")
         page = 0;
 
-    if(typeof limit !== "Number")
+    if(typeof limit !== "number")
         limit = 50;
 
     this.query.query("GET", [endpoints["ROOMS"], "?q=", name, "&page=", page, "&limit=", limit].join(''), callback);
@@ -1318,7 +1319,7 @@ Plugged.prototype.ignoreUser = function(userID, callback) {
 //DELETE plug.dj/_/playlists/<id>
 Plugged.prototype.deletePlaylist = function(playlistID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
-    this.query.query("DELETE", endpoints["PLAYLISTS"] + '/' + playlistID, callback);
+    this.query.query("DELETE", endpoints["PLAYLISTS"] + '/' + playlistID, callback, true);
 };
 
 //DELETE plug.dj/_/ignores/<id>/
@@ -1631,9 +1632,9 @@ Plugged.prototype.meh = function(callback) {
     }, callback);
 };
 
-Plugged.prototype.favoriteRoom = function(roomID) {
+Plugged.prototype.favoriteRoom = function(roomID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["FAVORITEROOM"], { id: roomID }, callback);
+    this.query.query("POST", endpoints["FAVORITEROOM"], { id: roomID }, callback, true);
 };
 
 Plugged.prototype.deleteNotification = function(id, callback) {
