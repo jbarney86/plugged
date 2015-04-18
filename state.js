@@ -10,7 +10,6 @@ var parseSelf = function(data) {
         notifications: data.notification || [],
         ignores: data.ignores || [],
         friends: data.friends || [],
-        status: data.status || 0,
         joined: data.joined || 0,
         level: data.level || 0,
         gRole: data.gRole || 0,
@@ -33,7 +32,6 @@ var parseUser = function(data) {
         language: data.language || "en",
         blurb: data.blurb || "",
         slug: data.slug || "",
-        status: data.status || 0,
         joined: data.joined || 0,
         level: data.level || 0,
         gRole: data.gRole || 0,                 //global role
@@ -50,7 +48,6 @@ var parseUserUpdate = function(data) {
     return {
         id: data.i || -1,
         level: data.level || undefined,
-        status: data.status || undefined,
         avatarID: data.avatarID || undefined,
         username: data.username || undefined
     };
