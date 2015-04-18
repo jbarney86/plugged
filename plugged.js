@@ -38,7 +38,6 @@ var endpoints = {
     LOGIN: baseURL +        "/_/auth/login",
     BADGE: baseURL +        "/_/users/badge",
     AVATAR: baseURL +       "/_/users/avatar",
-    STATUS: baseURL +       "/_/users/status",
     SETTINGS: baseURL +     "/_/users/settings",    // TODO: new endpoint
     LANGUAGE: baseURL +     "/_/users/language",
     IGNOREFRIEND: baseURL + "/_/friends/ignore",
@@ -170,6 +169,7 @@ Plugged.prototype.GLOBALROLE = {
     ADMIN:              5
 };
 
+//TODO: remove after 1.1.0, plug removed user statuses
 Plugged.prototype.USERSTATUS = {
     AVAILABLE:  1,
     AWAY:       2,
@@ -872,17 +872,18 @@ Plugged.prototype.getUserByID = function(id, checkCache) {
 
 Plugged.prototype.getUserByName = function(username, checkCache) {
     checkCache = checkCache || false;
+    username = username.toLowerCase();
 
-    if(username === this.state.self.username)
+    if(this.state.self.username.toLowerCase() === username)
         return this.state.self;
     
     for(var i = 0, l = this.state.room.users.length; i < l; i++) {
-        if(this.state.room.users[i].username === username)
+        if(this.state.room.users[i].username.toLowerCase() === username)
             return this.state.room.users[i];
     }
 
     for(var i = 0, l = this.state.usercache.length; checkCache && i < l; i++) {
-        if(this.state.usercache[i].username === username)
+        if(this.state.usercache[i].username.toLowerCase() === username)
             return this.state.usercache[i];
     }
 
@@ -1054,9 +1055,10 @@ Plugged.prototype.removeCachedUserByName = function(username) {
     for(var i = 0, l = this.state.usercache.length; i < l; i++) {
         if(this.state.usercache[i].user.username === username) {
             this.state.usercache.splice(i, 1);
-            break;
+            return true;
         }
     }
+    return false;
 };
 
 Plugged.prototype.getStaffOnline = function() {
@@ -1346,7 +1348,7 @@ Plugged.prototype.removeStaff = function(userID, callback) {
 
 Plugged.prototype.removeDJ = function(userID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("DELETE", endpoints["REMOVEBOOTH"] + '/' + userID, callback);
+    this.query.query("DELETE", endpoints["REMOVEBOOTH"] + '/' + userID, callback, true);
 };
 
 Plugged.prototype.leaveWaitlist = function(callback) {
@@ -1412,7 +1414,7 @@ Plugged.prototype.requestSelf = function(callback) {
                         self.state.self.friends.push(data[i].id);
                 }
 
-                callback(err, data);
+                callback(err, self.state.self);
             });
         } else {
             callback(err);
@@ -1466,9 +1468,10 @@ Plugged.prototype.getPlaylists = function(callback) {
     this.query.query("GET", endpoints["PLAYLISTS"], callback);
 };
 
+//TODO: deprecated, remove after 1.1.0 release
 Plugged.prototype.getHistory = function(callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["USERHISTORY"], callback);
+    console.log("please use getRoomHistory, this function is deprecated and will be removed with 1.1.1");
+    this.getRoomHistory(callback);
 };
 
 Plugged.prototype.getIgnores = function(callback) {
@@ -1544,13 +1547,7 @@ Plugged.prototype.setAvatar = function(avatarID, callback) {
 
 //PUT plug.dj/_/status
 Plugged.prototype.setStatus = function(status, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
-    this.query.query("PUT", endpoints["STATUS"], { status: status }, function(err) {
-        if(!err)
-            this.state.self.status = status;
-
-        callback(err);
-    }.bind(this));
+    console.log("plug has removed user statuses");
 };
 
 //PUT plug.dj/_/language
@@ -1665,9 +1662,9 @@ Plugged.prototype.getInventory = function(callback) {
     this.query.query("GET", endpoints["INVENTORY"], callback);
 };
 
-Plugged.prototype.getProducts = function(category, callback) {
+Plugged.prototype.getProducts = function(type, category, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("GET", endpoints["PRODUCTS"] + "/avatars/" + category, callback);
+    this.query.query("GET", [endpoints["PRODUCTS"], '/', type, '/', category].join(''), callback);
 };
 
 // TODO: further investigate what this endpoint does
