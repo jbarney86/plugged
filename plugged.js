@@ -64,9 +64,7 @@ var endpoints = {
     NOTIFICATION: baseURL + "/_/notifications/"
 };
 
-WebSocket.prototype.sendMessage = function(type, data, offset) {
-    offset = offset || 0;
-
+WebSocket.prototype.sendMessage = function(type, data) {
     if(typeof type === "string" && (typeof data === "string" || typeof data === "number")) {
         this.send([
             '{"a":"', type, '","p":"', data, 
@@ -123,7 +121,6 @@ function Plugged() {
     this.chatcachesize = 256;
     this.keepAliveTries = 0;
     this.keepAliveID = -1;
-    this.offset = 0;
     this.credentials = null;
     this.sock = null;
     this.auth = null;
@@ -297,24 +294,20 @@ Plugged.prototype.getAuthAndServerTime = function(data, callback) {
         if(!err) {
             var idx = body.indexOf("_jm=\"") + 5;
             var token;
-            var time;
 
             token = body.substr(idx, body.indexOf("\"", idx) - idx);
-            idx = body.indexOf("_st=\"") + 5;
-            time = body.substr(idx, body.indexOf("\"", idx) - idx);
-
-            time = Date.parse(time + " UTC");
 
             // a valid token is always 152 characters in length
-            if(token.length == 152 && !isNaN(time)) {
+            if(token.length == 152) {
                 this.log("auth token: " + token, 2, "yellow");
-                this.log("time: " + time, 2, "yellow");
-                this.offset = Date.now() - time;
                 this.auth = token;
 
-                callback(null, token, time);
+                callback(null, token);
             } else {
-                callback(setErrorMessage(200, "couldn't fetch auth token or servertime"));
+                if(!token)
+                    callback(setErrorMessage(200, "couldn't fetch auth token"));
+                else
+                    callback(setErrorMessage(200, "invalid token"));
             }
 
         } else {
@@ -335,7 +328,7 @@ Plugged.prototype._connectSocket = function() {
     this.sock.on("open", function _sockOpen() {
         self.log("socket opened", 3, "magenta");
         self.emit(self.SOCK_OPEN, self);
-        this.sendMessage("auth", self.auth, self.offset);
+        this.sendMessage("auth", self.auth);
         self._keepAliveCheck.call(self);
     });
 
@@ -539,7 +532,7 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             var chat = models.parseChatDelete(data.p);
 
             if(self.ccache)
-                self.removeChat(chat.cid);
+                self.removeChatMessage(chat.cid, true);
 
             self.emit(self.CHAT_DELETE, chat);
             break;
@@ -761,39 +754,7 @@ Plugged.prototype._keepAliveCheck = function() {
 };
 
 Plugged.prototype.sendChat = function(message, deleteTimeout) {
-    deleteTimeout = deleteTimeout || -1;
-
-    if(typeof message !== "string")
-        message = message.toString();
-
-    if(message.indexOf('"') >= 0)
-        message = message.replace(/"/g, "'");
-
-    if(message.length <= 255) {
-        this.sock.sendMessage("chat", message, this.offset);
-
-        if(deleteTimeout > 0)
-            setTimeout(this.removeChatByBody.bind(this), deleteTimeout, message);
-
-    } else {
-        var splits = Math.floor(message.length / 255);
-
-        var _multiMessageFunc = function(self, msg, splits, currentSplit, msgArray) {
-            var hsplit = msg.slice(currentSplit*255, (currentSplit+1)*255);
-
-            msgArray.push(hsplit);
-            self.sock.sendMessage("chat", hsplit);
-
-            if(currentSplit < splits) {
-                setTimeout(_multiMessageFunc, 600, self, msg, splits, ++currentSplit, msgArray);
-            } else {
-                if(deleteTimeout > 0)
-                    setTimeout(self.removeChatByBody.bind(self), deleteTimeout, msgArray);
-            }
-        };
-
-        _multiMessageFunc(this, message, splits, 0, []);
-    }
+    
 };
 
 Plugged.prototype.invokeLogger = function(logfunc) {
@@ -1388,7 +1349,6 @@ Plugged.prototype.logout = function() {
 
             this.sock = null;
             this.auth = null;
-            this.offset = 0;
             this.keepAliveTries = 0;
             this.keepAliveID = -1;
 
