@@ -539,7 +539,7 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
         case self.CHAT:
             var chat = models.parseChat(data.p);
 
-            if(self.ccache) {
+            if(self.ccache || chat.username === self.state.self.username) {
                 self.state.chatcache.push(chat);
 
                 if(self.state.chatcache.length > self.chatcachesize)
