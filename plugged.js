@@ -299,6 +299,9 @@ Plugged.prototype._processChatQueue = function(lastMessage) {
 };
 
 Plugged.prototype._removeChatMessageByDelay = function(message) {
+    if(typeof message !== "string")
+        return;
+
     for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
         if(this.state.chatcache[i].username !== this.state.self.username)
             continue;
@@ -502,7 +505,22 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             break;
 
         case self.ADVANCE:
-            var previous = self.state.room.playback.media;
+            var previous = {
+                media: self.state.room.playback.media,
+                dj: this.getUserByID(self.state.room.booth.dj),
+                score: {
+                    positive: 0,
+                    negative: 0,
+                    grabs: self.state.room.grabs.length
+                }
+            };
+
+            for(var i = self.state.room.votes.length - 1; i >= 0; i--) {
+                if(self.state.room.votes[i].direction > 0)
+                    previous.score.positive++;
+                else
+                    previous.score.negative++;
+            }
 
             self.state.room.booth.dj = data.p.c;
             self.state.room.booth.waitlist = data.p.d;
