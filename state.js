@@ -1,13 +1,11 @@
 var util = require("util");
 
-var PlugTimeRegex = /(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+).(\d+)/g;
-
 var convertPlugTimeToDate = function(plugTime) {
-    var res = PlugTimeRegex.exec(plugTime);
-    var time = "";
+    var res = /(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+).(\d+)/g.exec(plugTime);
+    var time = "Invalid Date";
 
     if(res === null)
-        return;
+        return time;
 
     for(var i = res.length - 1; i >= 0; i--) {
         //clean array from unnecessary info
@@ -27,7 +25,7 @@ var convertPlugTimeToDate = function(plugTime) {
     }
 
     return time;
-}
+};
 
 var parseSelf = function(data) {
     data = data || {};
@@ -71,6 +69,16 @@ var parseUser = function(data) {
         sub: data.sub || 0,
         id: data.id || -1
     };
+};
+
+var parseUsers = function(data) {
+    data = data || {};
+    var arr = [];
+
+    for(var i = data.length-1; i >= 0; i--)
+        arr.push(parseUser(data[i]));
+
+    return arr;
 };
 
 var parseUserUpdate = function(data) {
@@ -219,7 +227,7 @@ var parseRoom = function(data) {
         playback: parsePlayback(data.playback),
         minChatLevel: data.minChatLevel || 0,
         role: data.role || 0,
-        users: data.users || [],
+        users: parseUsers(data.users),
         votes: parseVotes(data.votes)
     };
 };
