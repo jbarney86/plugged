@@ -64,6 +64,13 @@ var endpoints = {
     NOTIFICATION: baseURL + "/_/notifications/"
 };
 
+/*
+chat offset incrementation idea by 
+https://github.com/welovekpop/SekshiBot/blob/master/src/Sekshi.js
+*/
+var CHAT_TIMEOUT_INC = 60;
+var CHAT_TIMEOUT_MAX = 700;
+
 WebSocket.prototype.sendMessage = function(type, data) {
     if(typeof type === "string" && (typeof data === "string" || typeof data === "number")) {
         this.send([
@@ -84,31 +91,8 @@ function loginClient(client, tries) {
     async.waterfall([
         client.getCSRF.bind(client),
         client.setLogin.bind(client),
-        client.getAuthAndServerTime.bind(client)
-    ], function _loggedIn(err) {
-        if(!err) {
-            client._connectSocket();
-            client.requestSelf(function _requestSelfLogin(err) {
-                if(!err)
-                    client.emit(client.LOGIN_SUCCESS);
-                else
-                    client.emit(client.LOGIN_ERROR, err);
-            });
-
-        } else {
-
-            if(tries < 2) {
-                client.log("an error occured while trying to log in", 0, "red");
-                client.log("err: " + err.code, 1, "red");
-                client.log("trying to reconnect...", 0);
-                loginClient(client, ++tries);
-            } else {
-                client.log("couldn't log in.", 0, "red");
-                client.emit(client.LOGIN_ERROR, "couldn't log in");
-            }
-
-        }
-    });
+        client._getAuthToken.bind(client)
+    ], client._loggedIn.bind(client));
 }
 
 function Plugged() {
@@ -117,6 +101,8 @@ function Plugged() {
     this.log = function() {};
     this.state = models.createState();
     this.query = new Query();
+    this.chatQueue = [];
+    this.chatTimeout = 0;
     this.cleanCacheInterval = -1;
     this.chatcachesize = 256;
     this.keepAliveTries = 0;
@@ -252,13 +238,28 @@ Plugged.prototype._keepAlive = function() {
     }
 };
 
-Plugged.prototype._muteExpired = function(mute) {
-    for(var i = this.state.room.mutes.length - 1; i >= 0; i--) {
-        if(this.state.room.mutes[i].id == mute.id) {
-            clearTimeout(this.state.room.mutes[i].interval);
-            this.state.room.mutes.splice(i, 1);
-            break;
+Plugged.prototype._loggedIn = function(err) {
+    if(!err) {
+        this._connectSocket();
+        this.requestSelf(function _requestSelfLogin(err) {
+            if(!err)
+                this.emit(this.LOGIN_SUCCESS);
+            else
+                this.emit(this.LOGIN_ERROR, err);
+        });
+
+    } else {
+
+        if(tries < 2) {
+            this.log("an error occured while trying to log in", 0, "red");
+            this.log("err: " + err.code, 1, "red");
+            this.log("trying to reconnect...", 0);
+            loginClient(this, ++tries);
+        } else {
+            this.log("couldn't log in.", 0, "red");
+            this.emit(this.LOGIN_ERROR, "couldn't log in");
         }
+
     }
 };
 
@@ -266,6 +267,46 @@ Plugged.prototype._cleanUserCache = function() {
     for(var i = this.state.usercache.length - 1; i >= 0; i--) {
         if(Date.now() - this.state.usercache[i].timestamp > 5*60*1000)
             this.state.usercache.splice(i, 1);
+    }
+};
+
+Plugged.prototype._processChatQueue = function(lastMessage) {
+    lastMessage = lastMessage || 0;
+
+    if(this.chatQueue.length > 0) {
+        var msg = this.chatQueue.shift();
+
+        if(lastMessage + this.chatTimeout <= Date.now()) {
+            this.sock.sendMessage("chat", msg.message);
+
+            //timeouts can't get lower than 4ms but anything below 1000ms is ridiculous anyway
+            if(msg.timeout >= 0) {
+                setTimeout(
+                    this._removeChatMessageByDelay.bind(this), 
+                    msg.timeout,
+                    msg.message
+                    );
+            }
+
+            if(this.chatTimeout < CHAT_TIMEOUT_MAX)
+                this.chatTimeout += CHAT_TIMEOUT_INC;
+        }
+        
+        setTimeout(this._processChatQueue.bind(this), this.chatTimeout, Date.now());
+    } else {
+        this.chatTimeout = 0;
+    }
+};
+
+Plugged.prototype._removeChatMessageByDelay = function(message) {
+    for(var i = this.state.chatcache.length - 1; i >= 0; i--) {
+        if(this.state.chatcache[i].username !== this.state.self.username)
+            continue;
+
+        if(this.state.chatcache[i].message === message) {
+            this.removeChatMessage(this.state.chatcache[i].cid);
+            break;
+        }
     }
 };
 
@@ -285,35 +326,11 @@ Plugged.prototype._checkForPreviousVote = function(vote) {
     return false;
 };
 
-Plugged.prototype.getAuthAndServerTime = function(data, callback) {
-    callback = (typeof callback !== "undefined" ? callback.bind(this) : function() {});
-
-    // the endpoint is the same but the site's content has changed due
-    // to the user being logged in.
-    this.query.query("GET", endpoints["CSRF"], function _gotAuthToken(err, body) {
-        if(!err) {
-            var idx = body.indexOf("_jm=\"") + 5;
-            var token;
-
-            token = body.substr(idx, body.indexOf("\"", idx) - idx);
-
-            // a valid token is always 152 characters in length
-            if(token.length == 152) {
-                this.log("auth token: " + token, 2, "yellow");
-                this.auth = token;
-
-                callback(null, token);
-            } else {
-                if(!token)
-                    callback(setErrorMessage(200, "couldn't fetch auth token"));
-                else
-                    callback(setErrorMessage(200, "invalid token"));
-            }
-
-        } else {
-            callback(err);
-        }
-    }.bind(this));
+Plugged.prototype._getAuthToken = function(data, callback) {
+    this.getAuthToken(function(err, token) {
+        this.auth = token;
+        callback(null, token);
+    });
 };
 
 /*================== WebSocket ==================*/
@@ -358,20 +375,11 @@ Plugged.prototype._connectSocket = function() {
 };
 
 Plugged.prototype.clearMutes = function() {
-    for(var i = 0, l = this.state.room.mutes.length; i < l; i++)
-        clearTimeout(this.state.room.mutes[i].interval);
-
-    this.state.room.mutes = [];
+    console.log("clearMutes is deprecated and will be removed with 1.1.1");
 };
 
 Plugged.prototype.clearMute = function(id) {
-    for(var i = 0, l = this.state.room.mutes.length; i < l; i++) {
-        if(this.state.room.mutes[i].id == id) {
-            clearTimeout(this.state.room.mutes[i].interval);
-            this.state.room.mutes.splice(i, 1);
-            break;
-        }
-    }
+    console.log("clearMute is deprecated and will be removed with 1.1.1");
 };
 
 Plugged.prototype.clearUserCache = function() {
@@ -597,18 +605,16 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             break;
 
         case self.MOD_MUTE:
-            var mute = models.parseMute(data.p);
-            var time = (mute.duration === self.MUTEDURATION.SHORT ? 
-                15*60*1000 : mute.duration === self.MUTEDURATION.MEDIUM ? 
-                30*60*1000 : mute.duration === self.MUTEDURATION.LONG ? 
-                45*60*1000 : 15*60*1000);
+            if(!data)
+                break;
 
-            if(mute.duration === self.MUTEDURATION.NONE)
-                self.clearMute(mute.id);
-            else
-                self.state.room.mutes.push({id: mute.id, time: mute.duration, interval: setTimeout(self._muteExpired.bind(self), time, mute) });
+            var time = (data.p.d === self.MUTEDURATION.SHORT ? 
+                15*60 : data.p.d === self.MUTEDURATION.MEDIUM ? 
+                30*60 : data.p.d === self.MUTEDURATION.LONG ? 
+                45*60 : 15*60);
+            var mute = models.parseMute(data.p, time);
         
-            self.emit(self.MOD_MUTE, mute);
+            self.emit(self.MOD_MUTE, mute, (data.p.d ? data.p.d : self.MUTEDURATION.NONE));
             break;
 
         case self.MOD_STAFF:
@@ -661,7 +667,7 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             for(var i = self.state.room.users.length - 1; i >= 0; i--) {
                 if(self.state.room.users[i].id == data.p) {
                     self.clearUserFromLists(data.p);
-                    user = self.state.room.users.splice(i, 1);
+                    user = self.state.room.users.splice(i, 1)[0];
 
                     if(self.sleave)
                         self.cacheUser(user);
@@ -674,7 +680,7 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             break;
 
         case self.USER_JOIN:
-            var user = models.parseUser(data.p)
+            var user = models.parseUser(data.p);
             self.state.room.users.push(user);
             self.state.room.meta.population++;
 
@@ -754,7 +760,22 @@ Plugged.prototype._keepAliveCheck = function() {
 };
 
 Plugged.prototype.sendChat = function(message, deleteTimeout) {
-    
+    deleteTimeout = deleteTimeout || -1;
+
+    if(!message || message.length <= 0)
+        return;
+
+    //256 is the max length a chat message can have, 
+    //but the chat window caps the message at 250.
+    for(var i = 0, l = Math.ceil(message.length/250); i < l; i++) {
+        this.chatQueue.push({
+            message: message.slice(i*250, (i+1)*250),
+            timeout: (l - 1 <= i ? deleteTimeout : -1)
+        });
+    }
+
+    if(this.chatTimeout === 0)
+        this._processChatQueue();
 };
 
 Plugged.prototype.invokeLogger = function(logfunc) {
@@ -762,19 +783,24 @@ Plugged.prototype.invokeLogger = function(logfunc) {
     this.log = logfunc;
 };
 
-Plugged.prototype.login = function(credentials) {
-    if(typeof credentials !== "object")
-        throw new Error("credentials has to be of type object");
+Plugged.prototype.login = function(credentials, authToken) {
+    if(!authToken) {
+        if(typeof credentials !== "object")
+            throw new Error("credentials has to be of type object");
 
-    if(!credentials.hasOwnProperty("email") || !credentials.hasOwnProperty("password"))
-        throw new Error("property email or password are not defined");
+        if(!credentials.hasOwnProperty("email") || !credentials.hasOwnProperty("password"))
+            throw new Error("property email or password are not defined");
 
-    this.credentials = credentials;
+        this.credentials = credentials;
 
-    this.log("logging in with account: " + credentials.email, 2, "yellow");
+        this.log("logging in with account: " + credentials.email, 2, "yellow");
 
-    // 0 indicating the amount of tries
-    loginClient(this, 0);
+        // 0 indicating the amount of tries
+        loginClient(this, 0);
+    } else {
+        this.auth = authToken;
+        this._loggedIn();
+    }
 };
 
 Plugged.prototype.connect = function(room) {
@@ -788,7 +814,6 @@ Plugged.prototype.connect = function(room) {
             self.watchUserCache(true);
             self.clearUserCache();
             self.clearChatCache();
-            self.clearMutes();
 
             self.getRoomStats(function(err, stats) {
 
@@ -796,12 +821,12 @@ Plugged.prototype.connect = function(room) {
                     self.state.room = models.parseRoom(stats);
                     self.emit(self.JOINED_ROOM, self.state.room);
                 } else {
-                    self.emit(self.PLUG_ERROR, err.message);
+                    self.emit(self.PLUG_ERROR, err);
                 }
             });
 
         } else {
-            self.emit(self.PLUG_ERROR, err.message);
+            self.emit(self.PLUG_ERROR, err);
         }
     });
 };
@@ -1336,7 +1361,6 @@ Plugged.prototype.logout = function() {
     this.query.query("DELETE", endpoints["SESSION"], function _loggedOut(err, body) {
         if(!err) {
             this.watchUserCache(false);
-            this.clearMutes();
             this.clearUserCache();
             this.clearChatCache();
             this.query.flushQuery();
@@ -1635,7 +1659,7 @@ Plugged.prototype.purchaseByUsername = function(itemID, username, callback) {
 
 Plugged.prototype.purchaseItem = function(itemID, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
-    this.query.query("POST", endpoints["PURCHASE"], { id: itemID }, callback);
+    this.query.query("POST", endpoints["PURCHASE"], { id: itemID }, callback, true);
 };
 
 module.exports = Plugged;
