@@ -16,13 +16,13 @@ var convertPlugTimeToDate = function(plugTime) {
     }
 
     if(res.length === 3) {
-        res.unshift("%d-%d-%d");
+        res.unshift("%s-%s-%s");
         time = util.format.apply(util, res);
     } else if(res.length === 6) {
-        res.unshift("%d-%d-%d %d:%d:%dZ");
+        res.unshift("%s-%s-%sT%s:%s:%sZ");
         time = util.format.apply(util, res);
     } else if(res.length === 7) {
-        res.unshift("%d-%d-%d %d:%d:%d.%dZ");
+        res.unshift("%s-%s-%sT%s:%s:%s.%sZ");
         time = util.format.apply(util, res);
     }
 
