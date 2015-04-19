@@ -1,7 +1,39 @@
+var util = require("util");
+
+var PlugTimeRegex = /(\d+)-(\d+)-(\d+)\s+(\d+):(\d+):(\d+).(\d+)/g;
+
+var convertPlugTimeToDate = function(plugTime) {
+    var res = PlugTimeRegex.exec(plugTime);
+    var time = "";
+
+    if(res === null)
+        return;
+
+    for(var i = res.length - 1; i >= 0; i--) {
+        //clean array from unnecessary info
+        if(isNaN(res[i]) && !isFinite(res[i]))
+            res.splice(i, 1);
+    }
+
+    if(res.length === 3) {
+        res.unshift("%d-%d-%d");
+        time = util.format.apply(util, res);
+    } else if(res.length === 6) {
+        res.unshift("%d-%d-%d %d:%d:%dZ");
+        time = util.format.apply(util, res);
+    } else if(res.length === 7) {
+        res.unshift("%d-%d-%d %d:%d:%d.%dZ");
+        time = util.format.apply(util, res);
+    }
+
+    return time;
+}
+
 var parseSelf = function(data) {
     data = data || {};
 
     return {
+        joined: convertPlugTimeToDate(data.joined),
         username: data.username || "",
         avatarID: data.avatarID || "base01",
         language: data.language || "en",
@@ -10,7 +42,6 @@ var parseSelf = function(data) {
         notifications: data.notification || [],
         ignores: data.ignores || [],
         friends: data.friends || [],
-        joined: data.joined || 0,
         level: data.level || 0,
         gRole: data.gRole || 0,
         badge: data.badge || 0,
@@ -27,15 +58,15 @@ var parseUser = function(data) {
     data = data || {};
 
     return {
+        joined: convertPlugTimeToDate(data.joined),
         username: data.username || "",
         avatarID: data.avatarID || "base01",
         language: data.language || "en",
         blurb: data.blurb || "",
         slug: data.slug || "",
-        joined: data.joined || 0,
         level: data.level || 0,
         gRole: data.gRole || 0,                 //global role
-        badge: data.badge || 0,                 //long time users got a badge
+        badge: data.badge || "",                //long time users got a badge
         role: data.role || 0,
         sub: data.sub || 0,
         id: data.id || -1
@@ -132,7 +163,7 @@ var parsePlayback = function(data) {
         media: parseMedia(data.media),
         historyID: data.historyID || "",
         playlistID: data.playlistID || -1,
-        startTime: data.startTime || 0
+        startTime: convertPlugTimeToDate(data.startTime)
     };
 };
 
@@ -385,5 +416,6 @@ exports.parseUserUpdate = parseUserUpdate;
 exports.parseChatDelete = parseChatDelete;
 exports.parseExtendedRoom = parseExtendedRoom;
 exports.parseRoomNameUpdate = parseRoomNameUpdate;
+exports.convertPlugTimeToDate = convertPlugTimeToDate;
 exports.parseRoomWelcomeUpdate = parseRoomWelcomeUpdate;
 exports.parseRoomDescriptionUpdate = parseRoomDescriptionUpdate;
