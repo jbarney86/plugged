@@ -182,6 +182,26 @@ var pushVote = function(vote) {
     };
 };
 
+var parseSettings = function(data) {
+    data = data || {};
+
+    return {
+        volume: data.volume || 50,
+        avatarcap: data.avatarcap || 50,
+        dancing: data.dancing || 1,
+        streamDisabled: data.streamDisabled || 0,
+        chatSound: data.chatSound || 1,
+        chatTranslation: data.chatTranslation || 0,
+        chatTimestamps: data.chatTimestamps || 24,
+        emoji: data.emoji || 1,
+        notifyDJ: data.notifyDJ || 1,
+        notifyFriendJoin: data.notifyFriendJoin || 1,
+        notifyScore: data.notifyScore || 0,
+        tooltips: data.tooltips || 0,
+        videoOnly: data.videoOnly || 0
+    };
+};
+
 var parseExtendedRoom = function(data) {
     data = data || {};
 
@@ -401,6 +421,7 @@ exports.parseBooth = parseBooth;
 exports.parseModBan = parseModBan;
 exports.createState = createState;
 exports.parseModMove = parseModMove;
+exports.parseSettings = parseSettings;
 exports.parseModAddDJ = parseModAddDJ;
 exports.parsePlayback = parsePlayback;
 exports.parsePromotion = parsePromotion;
