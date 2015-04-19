@@ -106,29 +106,15 @@ var parseMedia = function(data) {
     }
 };
 
-var parseMutes = function(data) {
-    data = data || {};
-    var arr = [];
-
-    for(var key in data) {
-        arr.push({
-            id: key,
-            time: data[key]
-        });
-    }
-
-    return arr;
-};
-
-var parseMute = function(data) {
+var parseMute = function(data, expireDate) {
     data = data || {};
 
     return {
-        username: data.t || "",      //name of the user
-        id: data.i || -1,            //user ID
-        moderator: data.m || "",
-        duration: data.d || 's',
-        reason: data.r || 1
+        username: data.username || data.t || "",      //name of the user
+        id: data.id || data.i || -1,            //user ID
+        moderator: data.moderator || data.m || "",
+        reason: data.reason || data.r || 1,
+        expires: data.expires || expireDate || -1
     };
 };
 
@@ -209,6 +195,7 @@ var parseExtendedRoom = function(data) {
         image: data.image || "",
         media: data.media || "",
         name: data.name || "",
+        capacity: data.capacity || 5000,
         population: data.population || 0,
         private: data.private || false,
         slug: data.slug || ""
@@ -223,7 +210,6 @@ var parseRoom = function(data) {
         fx: data.fx || [],
         grabs: parseGrabs(data.grabs),
         meta: parseMeta(data.meta),
-        mutes: parseMutes(data.mutes),
         playback: parsePlayback(data.playback),
         minChatLevel: data.minChatLevel || 0,
         role: data.role || 0,
@@ -407,7 +393,6 @@ exports.parseRoom = parseRoom;
 exports.parseMeta = parseMeta;
 exports.parseLock = parseLock;
 exports.parseMute = parseMute;
-exports.parseMutes = parseMutes;
 exports.parseCycle = parseCycle;
 exports.parseGrabs = parseGrabs;
 exports.parseMedia = parseMedia;
