@@ -34,9 +34,9 @@ plug.on(plug.JOINED_ROOM, function _joinedRoom() {
 
 Events
 ==========
-Most functionality is exposed via events. The wiki describes how to use what events when.
+Most functionality is exposed via [Events](https://github.com/SooYou/plugged/wiki/Events). The wiki describes how to use what events when.
 
 Server calls
 ==========
 Sometimes you need to call data from the server, for example if you want to get your current playlist, add a new media file or get a certain list of rooms based on a search string.
-All Server calls are described in the wiki
+All Server calls are described in the [wiki](https://github.com/SooYou/plugged/wiki)
