@@ -505,6 +505,7 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
 
         case self.ADVANCE:
             var previous = {
+                historyID: self.state.room.playback.historyID,
                 media: self.state.room.playback.media,
                 dj: this.getUserByID(self.state.room.booth.dj),
                 score: {
