@@ -231,7 +231,6 @@ var parseRoom = function(data) {
         grabs: parseGrabs(data.grabs),
         meta: parseMeta(data.meta),
         playback: parsePlayback(data.playback),
-        minChatLevel: data.minChatLevel || 0,
         role: data.role || 0,
         users: parseUsers(data.users),
         votes: parseVotes(data.votes)
@@ -247,6 +246,7 @@ var parseMeta = function(data) {
         hostID: data.hostID || -1,
         hostName: data.hostName || "",
         id: data.id || -1,
+        minChatLevel: data.minChatLevel || 0,
         name: data.name || "",
         population: data.population || 0,
         slug: data.slug || undefined,
