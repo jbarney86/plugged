@@ -27,9 +27,9 @@ var endpoints = {
     PLAYLISTS: baseURL +    "/_/playlists",
     PURCHASES: baseURL +    "/_/users/me/purchase",
     USERHISTORY: baseURL +  "/_/users/me/history",
-    TRANSACTIONS: baseURL + "/_/users/me/transactions", // TODO: new endpoint
+    TRANSACTIONS: baseURL + "/_/users/me/transactions",
     FAVORITEROOM: baseURL + "/_/rooms/favorites",
-    VALIDATEUSER: baseURL + "/_/users/validate/",       // TODO: new endpoint
+    VALIDATEUSER: baseURL + "/_/users/validate/",
     VALIDATEROOM: baseURL + "/_/rooms/validate/",
     /*--------------- PUT ---------------*/
     LOCK: baseURL +         "/_/booth/lock",
@@ -38,11 +38,10 @@ var endpoints = {
     LOGIN: baseURL +        "/_/auth/login",
     BADGE: baseURL +        "/_/users/badge",
     AVATAR: baseURL +       "/_/users/avatar",
-    SETTINGS: baseURL +     "/_/users/settings",    // TODO: new endpoint
+    SETTINGS: baseURL +     "/_/users/settings",
     LANGUAGE: baseURL +     "/_/users/language",
     IGNOREFRIEND: baseURL + "/_/friends/ignore",
     /*--------------- POST --------------*/
-    GIFT: baseURL +         "/_/gift",              // TODO: new endpoint
     GRABS: baseURL +        "/_/grabs",
     VOTES: baseURL +        "/_/votes",
     RESET: baseURL +        "/_/auth/reset/me",
@@ -717,6 +716,11 @@ Plugged.prototype._wsaprocessor = function(self, msg) {
             self.emit(self.FRIEND_REQUEST, user ? user : data.p);
             break;
 
+        case self.FRIEND_ACCEPT:
+            var user = self.getUserByName(data.p);
+            self.emit(self.FRIEND_ACCEPT, user ? user : data.p);
+            break;
+
         case self.VOTE:
             var vote = models.pushVote(data.p);
             if(!self._checkForPreviousVote(vote))
@@ -1164,12 +1168,16 @@ Plugged.prototype.validateRoomName = function(name, callback) {
     this.query.query("GET", endpoints["VALIDATEROOM"] + name, callback, true);
 };
 
+Plugged.prototype.validateUsername = function(name, callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["VALIDATEUSER"] + name, callback, true);
+};
+
 Plugged.prototype.getMutes = function(callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("GET", endpoints["MUTES"], callback);
 };
 
-// here's some work needed to set the data properly
 Plugged.prototype.setLock = function(lock, removeAllDJs, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("PUT", endpoints["LOCK"], { 
@@ -1669,8 +1677,14 @@ Plugged.prototype.getProducts = function(type, category, callback) {
     this.query.query("GET", [endpoints["PRODUCTS"], '/', type, '/', category].join(''), callback);
 };
 
-// TODO: further investigate what this endpoint does
-Plugged.prototype.purchaseByUsername = function(itemID, username, callback) {
+// TODO: objects returned need further investigation
+// TODO: add to documentation
+Plugged.prototype.getTransactions = function(callback) {
+    callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
+    this.query.query("GET", endpoints["TRANSACTIONS"], callback);
+};
+
+Plugged.prototype.purchaseUsername = function(itemID, username, callback) {
     callback = (typeof callback !== "undefined" ? callback.bind(this) : undefined);
     this.query.query("POST", endpoints["PURCHASE"] + "/username", { id: itemID, username: username }, callback);
 };
