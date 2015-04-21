@@ -1,8 +1,8 @@
 var EventEmitter = require("events").EventEmitter;
 var models = require("./state");
 var Query = require("./query");
+var utils = require("./utils");
 var WebSocket = require("ws");
-var async = require("async");
 var util = require("util");
 
 var baseURL = "https://plug.dj";
@@ -79,21 +79,6 @@ WebSocket.prototype.sendMessage = function(type, data) {
     }
 };
 
-function setErrorMessage(statusCode, msg) {
-    return {
-        code: statusCode,
-        message: msg
-    };
-}
-
-function loginClient(client, tries) {
-    async.waterfall([
-        client.getCSRF.bind(client),
-        client.setLogin.bind(client),
-        client._getAuthToken.bind(client)
-    ], client._loggedIn.bind(client));
-}
-
 function Plugged() {
     Plugged.super_.call(this);
     
@@ -151,7 +136,7 @@ Plugged.prototype.GLOBALROLE = {
     ADMIN:              5
 };
 
-//TODO: remove after 1.1.0, plug removed user statuses
+//TODO: remove after 1.1.2, plug removed user statuses
 Plugged.prototype.USERSTATUS = {
     AVAILABLE:  1,
     AWAY:       2,
@@ -223,6 +208,25 @@ Plugged.prototype.MAINTENANCE_MODE = "plugMaintenance";
 Plugged.prototype.ROOM_WELCOME_UPDATE = "roomWelcomeUpdate";
 Plugged.prototype.ROOM_DESCRIPTION_UPDATE = "roomDescriptionUpdate";
 
+var escape = function(str) {
+    if(typeof str !== "string")
+        return "";
+
+    return str.replace(/&(#?[^;\W]+;?)/g, _match);
+};
+
+var _match = function(_, match) {
+    
+};
+
+var _keys = {
+    "&amp;": '&',
+    "&#34;": '"',
+    "&#39;": '\'',
+    "&gt;": '>',
+    "&lt;": '<'
+};
+
 Plugged.prototype._keepAlive = function() {
     if(this.keepAliveTries >= 6) {
         this.log("haven't received a keep alive message from host for more than 3 minutes, is it on fire?", 1, "red");
@@ -237,29 +241,14 @@ Plugged.prototype._keepAlive = function() {
     }
 };
 
-Plugged.prototype._loggedIn = function(err) {
-    if(!err) {
-        this._connectSocket();
-        this.requestSelf(function _requestSelfLogin(err) {
-            if(!err)
-                this.emit(this.LOGIN_SUCCESS);
-            else
-                this.emit(this.LOGIN_ERROR, err);
-        });
-
-    } else {
-
-        if(tries < 2) {
-            this.log("an error occured while trying to log in", 0, "red");
-            this.log("err: " + err.code, 1, "red");
-            this.log("trying to reconnect...", 0);
-            loginClient(this, ++tries);
-        } else {
-            this.log("couldn't log in.", 0, "red");
-            this.emit(this.LOGIN_ERROR, "couldn't log in");
-        }
-
-    }
+Plugged.prototype._loggedIn = function() {
+    this._connectSocket();
+    this.requestSelf(function _requestSelfLogin(err) {
+        if(!err)
+            this.emit(this.LOGIN_SUCCESS);
+        else
+            this.emit(this.LOGIN_ERROR, err);
+    });
 };
 
 Plugged.prototype._cleanUserCache = function() {
@@ -276,6 +265,7 @@ Plugged.prototype._processChatQueue = function(lastMessage) {
         var msg = this.chatQueue.shift();
 
         if(lastMessage + this.chatTimeout <= Date.now()) {
+            msg.message = msg.message.replace(/"/g, '\"');
             this.sock.sendMessage("chat", msg.message);
 
             //timeouts can't get lower than 4ms but anything below 1000ms is ridiculous anyway
@@ -377,11 +367,11 @@ Plugged.prototype._connectSocket = function() {
 };
 
 Plugged.prototype.clearMutes = function() {
-    console.log("clearMutes is deprecated and will be removed with 1.1.1");
+    console.log("clearMutes is deprecated and will be removed with 1.1.2");
 };
 
 Plugged.prototype.clearMute = function(id) {
-    console.log("clearMute is deprecated and will be removed with 1.1.1");
+    console.log("clearMute is deprecated and will be removed with 1.1.2");
 };
 
 Plugged.prototype.clearUserCache = function() {
@@ -404,9 +394,9 @@ Plugged.prototype.getChat = function() {
     return this.state.chatcache;
 };
 
-//TODO: remove this function after release of 1.1.0
+//TODO: remove this function after release of 1.1.2
 Plugged.prototype.removeChatByUser = function(username, cacheOnly) {
-    console.log("removeChatByUser is deprecated by 1.1.0, please use removeChatMessagesByUser");
+    console.log("removeChatByUser is deprecated by 1.1.2, please use removeChatMessagesByUser");
     this.removeChatMessagesByUser(username, cacheOnly);
 };
 
@@ -424,9 +414,9 @@ Plugged.prototype.removeChatMessagesByUser = function(username, cacheOnly) {
     } 
 };
 
-//TODO: remove this function after release of 1.1.0
+//TODO: remove this function after release of 1.1.2
 Plugged.prototype.removeChat = function(cid, cacheOnly) {
-    console.log("removeChat is deprecated by 1.1.0, please use removeChatMessage");
+    console.log("removeChat is deprecated by 1.1.2, please use removeChatMessage");
     this.removeChatMessage(cid, cacheOnly);
 };
 
@@ -818,8 +808,7 @@ Plugged.prototype.login = function(credentials, authToken) {
 
         this.log("logging in with account: " + credentials.email, 2, "yellow");
 
-        // 0 indicating the amount of tries
-        loginClient(this, 0);
+        utils.loginClient(this);
     } else {
         this.auth = authToken;
         this._loggedIn();
@@ -975,6 +964,11 @@ Plugged.prototype.getHostID = function() {
 
 Plugged.prototype.getPopulation = function() {
     return this.state.room.meta.population;
+};
+
+// TODO: add to documentation
+Plugged.prototype.getMinChatLevel = function() {
+    return this.state.room.meta.minChatLevel;
 };
 
 Plugged.prototype.isFavorite = function() {
@@ -1479,9 +1473,9 @@ Plugged.prototype.getPlaylists = function(callback) {
     this.query.query("GET", endpoints["PLAYLISTS"], callback);
 };
 
-//TODO: deprecated, remove after 1.1.0 release
+//TODO: deprecated, remove after 1.1.2 release
 Plugged.prototype.getHistory = function(callback) {
-    console.log("please use getRoomHistory, this function is deprecated and will be removed with 1.1.1");
+    console.log("please use getRoomHistory, this function is deprecated and will be removed with 1.1.2");
     this.getRoomHistory(callback);
 };
 
@@ -1519,7 +1513,7 @@ Plugged.prototype.getCSRF = function(callback) {
                 this.log("CSRF token: " + body, 2, "yellow");
                 callback(null, body);
             } else {
-                callback(setErrorMessage(200, "CSRF token was not found"));
+                callback(utils.setErrorMessage(200, "CSRF token was not found"));
             }
 
         } else {
