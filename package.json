@@ -34,7 +34,6 @@
 
     "dependencies": {
         "request": "*",
-        "async": "*",
         "ws": "*"
     }
 }
